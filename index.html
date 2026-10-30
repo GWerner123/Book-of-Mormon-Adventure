@@ -108,6 +108,11 @@ body.touchmode .touch{display:block}
   11. Map regions: CHAPTERS entries take region:'old' for the Old World;
       portal nodes (toOld/toLand) sail between regions. Shared helpers:
       seaVoyage(), followTrail(), drawSheep(), buildGather() and friends.
+  12. Story mode + Mormon framing: add every new chapter to STORY_ORDER
+      (book order) and give it a MORMON_NOTES verse. selfCheck() runs at
+      start-up and warns in the console about missing registry entries.
+  13. Distinct places: Jerusalem (buildJerusalem), Bountiful
+      (buildBountiful); the stronghold takes a theme: buildGather('red'|'jungle').
   10. Game name: Book of Mormon Adventure. Home-screen icon is the
       apple-touch-icon in <head>; keep it when editing.
    ===================================================================== */
@@ -541,7 +546,17 @@ const TILE_COL = {
   'm': ['#ead19a', '#d4b073', '#b88f55', '#8a6a40'],
   'c': ['#ff9a3c', '#3a2620', '#b4441c', '#140c0c'],
 };
-const GROUND = '.p,mf=';
+Object.assign(TILE_DEF, {
+  Q: { rows: TILE_DEF.R.rows, solid: 1, opaque: 1 }, q: { rows: TILE_DEF.r.rows, solid: 1, opaque: 1 }, Y: { rows: TILE_DEF.W.rows, solid: 1, opaque: 1 },
+  V: { rows: TILE_DEF.T.rows, solid: 1, opaque: 1 }, Z: { rows: TILE_DEF.X.rows, solid: 1, opaque: 1 }, U: { rows: TILE_DEF.T.rows, solid: 1, opaque: 1 },
+  e: { rows: TILE_DEF.m.rows }, k: { rows: TILE_DEF[','].rows }, j: { rows: TILE_DEF[','].rows }, n: { rows: TILE_DEF.m.rows },
+});
+Object.assign(TILE_COL, {
+  Q: ['#fbf4e4', '#ece0c6', '#d2c3a2', '#958566'], q: ['#fffaf0', '#ece0c6', '#d2c3a2', '#8a7a5c'], Y: ['#fbf1dc', '#e8d9b6', '#c9b48a', '#7a6848'],
+  V: ['#c8d4a8', '#8fa070', null, '#4f5c3a'], Z: ['#f2e0b4', '#dcc28c', '#b0915e', '#6e5434'], U: ['#7ac850', '#3f8a3a', null, '#1c4a24'],
+  e: ['#e09a6a', '#c97a4a', '#a85e38', '#7a3e24'], k: ['#d8c46a', '#bfa44a', '#9c843a', '#6a5a2a'], j: ['#5fa040', '#3f8a3a', '#2c6a30', '#1c4a24'], n: ['#8a9a50', '#6a7a3a', '#56662e', '#3a4a22'],
+});
+const GROUND = '.p,mf=ekjn';
 const TILES = {};
 for (const k in TILE_DEF) {
   const pal = ramp(TILE_COL[k]), bmp = bmpFrom(TILE_DEF[k].rows);
@@ -638,8 +653,23 @@ const SPR = {
   warrior:   makeChar({ hood: ['#8e2f28', '#6a201c'], robe: ['#9c6a28', '#7a5020'], trim: '#2b1d1a', skin: SKIN.b, metal: ['#b48a3a', '#8a6a2a'] }, { helmet: true, prop: 'dagger' }),
   youth:     makeChar({ hood: ['#e8c56a', '#b48a3a'], robe: ['#3a5fb0', '#2a4585'], trim: '#f3ead2', skin: SKIN.a, metal: ['#e8c56a', '#b48a3a'] }, { helmet: true }),
   youth2:    makeChar({ hood: ['#e8c56a', '#b48a3a'], robe: ['#3a5fb0', '#2a4585'], trim: '#f3ead2', skin: SKIN.c, metal: ['#e8c56a', '#b48a3a'] }, { helmet: true }),
+  abinadi:   makeChar({ hood: ['#8a6a40', '#664e2e'], robe: ['#8a5a34', '#664224'], trim: '#d9c3a0', skin: SKIN.c }, { beard: BEARD.grey, prop: 'staff' }),
+  noah:      makeChar({ hood: ['#7a3f9c', '#5e2f80'], robe: ['#7a3f9c', '#5e2f80'], trim: '#e8c56a', skin: SKIN.c, metal: ['#ffd968', '#d9a63c'] }, { helmet: true, beard: BEARD.black }),
+  priest:    makeChar({ hood: ['#e8c56a', '#b48a3a'], robe: ['#9c6a8a', '#764e68'], trim: '#e8c56a', skin: SKIN.a }),
+  almaY:     makeChar({ hood: ['#e8c56a', '#b48a3a'], robe: ['#9c6a8a', '#764e68'], trim: '#3a6fc8', skin: SKIN.c }),
+  amulek:    makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#c98a3a', '#9c6a28'], trim: '#3a6fc8', skin: SKIN.a }, { beard: BEARD.brown }),
+  almaP:     makeChar({ hood: ['#f3ead2', '#cfc2a0'], robe: ['#3a6fc8', '#2a5296'], trim: '#f3ead2', skin: SKIN.c }, { beard: BEARD.brown }),
+  moroniC:   makeChar({ hood: ['#c2453a', '#8e2f28'], robe: ['#c2453a', '#8e2f28'], trim: '#e8c56a', skin: SKIN.a, metal: ['#e8c56a', '#b48a3a'] }, { helmet: true, prop: 'banner' }),
+  moroniL:   makeChar({ hood: ['#4a4a58', '#33333d'], robe: ['#5a5a6a', '#42424e'], trim: '#e8c56a', skin: SKIN.a }, { beard: BEARD.brown }),
+  lehi:      makeChar({ hood: ['#f3ead2', '#cfc2a0'], robe: ['#c9a063', '#a07a4a'], trim: '#3a6fc8', skin: SKIN.c }, { beard: BEARD.grey }),
+  sariah:    makeChar({ hood: ['#5fa8d8', '#3f7fae'], robe: ['#d9c3a0', '#b39e7a'], trim: '#3a6fc8', skin: SKIN.c }),
+  sam:       makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#3f9a86', '#2c6f62'], trim: '#f3ead2', skin: SKIN.a }),
+  hunter:    makeChar({ hood: ['#3c3548', '#2a2433'], robe: ['#6b3a28', '#4d2a1e'], trim: '#c2453a', skin: SKIN.b, metal: ['#9a9aa6', '#6a6a76'] }, { helmet: true, prop: 'dagger' }),
+  lamoni:    makeChar({ hood: ['#3f9a86', '#2c6f62'], robe: ['#3f9a86', '#2c6f62'], trim: '#e8c56a', skin: SKIN.b, metal: ['#ffd968', '#d9a63c'] }, { helmet: true }),
+  mormon:    makeChar({ hood: ['#7a2e2e', '#5a2020'], robe: ['#8a3a2a', '#6a2a1e'], trim: '#e8c56a', skin: SKIN.a }, { beard: BEARD.grey }),
   elder:     makeChar({ hood: ['#e8dcc0', '#c4b494'], robe: ['#9c6a8a', '#764e68'], trim: '#f7ebc8', skin: SKIN.c }, { beard: BEARD.grey }),
 };
+SPR.kid1 = kidify(SPR.youth); SPR.kid2 = kidify(SPR.sariah); SPR.kid3 = kidify(SPR.youth2);
 function drawChar(spr, dir, frameIdx, fx, fy) {
   const x = Math.round(fx) - 8, y = Math.round(fy) - 15;
   if (dir === 'lying') { blit(spr.lying, 16, 16, x, y + 4, false); return; }
@@ -653,6 +683,10 @@ function drawProp(kind, dir, x, y, f) {
   if (kind === 'staff') {
     const sx = x + (dir === 'down' ? 13 : dir === 'up' ? 2 : dir === 'left' ? 3 : 12);
     rect(sx, y + 1 + bob, 1, 15, addColor('#8a5a34')); pset(sx, y + bob, addColor('#5a3520')); pset(sx - (dir === 'left' ? -1 : 1), y + bob, addColor('#5a3520'));
+  } else if (kind === 'banner') {
+    const sx = x + (dir === 'left' ? 2 : 13), w = addColor('#f7ebc8'), r = addColor('#c2453a');
+    rect(sx, y - 8 + bob, 1, 23, addColor('#5a3520'));
+    const fx = dir === 'left' ? sx - 9 : sx + 1; rect(fx, y - 8 + bob, 9, 7, w); rect(fx + 1, y - 6 + bob, 7, 1, r); rect(fx + 1, y - 4 + bob, 5, 1, r);
   } else if (kind === 'dagger') {
     const dx = x + (dir === 'down' ? 4 : dir === 'left' ? 9 : 6), dy = y + 10;
     pset(dx, dy, addColor('#5a3520')); pset(dx, dy + 1, addColor('#d8dce4')); pset(dx, dy + 2, addColor('#a8aebc'));
@@ -1274,9 +1308,11 @@ function cardMode(lines, opts = {}) {
 }
 function showCard(lines, opts = {}) {
   return new Promise(res => {
-    const m = cardMode(lines, opts); let t = 0, done = false; const min = opts.min ?? 40;
+    const m = cardMode(lines, opts); let t = 0, done = false, bFree = false; const min = opts.min ?? 40;
     m.update = () => {
       t++; if (done) return;
+      if (!Input.held.b) bFree = true;
+      if (bFree && Input.held.b && t > 12) { done = true; fadeOut().then(res); return; }
       if ((t > min && (Input.pressed.a || Input.pressed.start)) || (opts.auto && t > opts.auto)) { done = true; if (!opts.auto) Sound.sfx('next'); fadeOut().then(res); }
     };
     setMode(m); fadeIn();
@@ -1314,24 +1350,36 @@ function drawSkyline(t, bright) {
 }
 function titleMode() {
   const m = {
-    t: 0, busy: false,
+    t: 0, busy: false, sel: 0,
     update() {
       this.t++;
       if (this.busy) return;
-      if (Input.pressed.start || Input.pressed.a) { this.busy = true; Sound.sfx('start'); (async () => { await fadeOut(); await goMap(); })(); }
+      if (Input.pressed.up || Input.pressed.down) { this.sel ^= 1; Sound.sfx('move'); }
+      if (Input.pressed.start || Input.pressed.a) {
+        this.busy = true; Sound.sfx('start');
+        (async () => {
+          await fadeOut();
+          if (this.sel === 1) { await startStory(); return; }
+          PROG.story = false; saveProg();
+          if (!PROG.introSeen) { await mormonIntro(); await fadeOut(); }
+          await goMap();
+        })();
+      }
     },
     draw() {
       drawSkyline(this.t);
       litDraw = 2;
       [['BOOK OF', 8], ['MORMON', 26], ['ADVENTURE', 44]].forEach(([w, y]) => { const x = (W - w.length * 12) / 2 | 0; text(w, x + 1, y + 1, 3, 2); text(w, x, y, 0, 2); });
-      if ((this.t >> 5) % 2) { rect(42, 124, 76, 11, 3); textCenter('PRESS START', 126, 0); }
-      rect(0, 137, W, 7, 3); textCenter('HELAMAN - 3 NEPHI', 137, 1);
+      rect(34, 103, 92, 31, 3);
+      ['ADVENTURE', 'STORY MODE'].forEach((o, i) => { textCenter(o, 107 + i * 12, this.sel === i ? 0 : 2); if (this.sel === i && (this.t >> 4) % 2) text('>', 38, 107 + i * 12, 0); });
+      rect(0, 137, W, 7, 3); textCenter(this.sel ? 'PLAY IN BOOK ORDER' : 'EXPLORE THE MAP', 137, 1);
       litDraw = 0;
     },
   };
   return m;
 }
 async function goTitle() {
+  if (!goTitle.checked) { goTitle.checked = true; setTimeout(() => { try { selfCheck(); } catch (e) { console.warn(e); } }, 0); }
   G.dawn = 0; setDawn(0); State.scene = 1;
   UI.notebookAllowed = false;
   setMode(titleMode()); Sound.play(null);
@@ -1363,7 +1411,7 @@ async function newGame() {
 async function continueGame(save) {
   State.signs = save.signs || [false, false, false]; State.checkpoint = save.checkpoint || null; State.helpSeen = !!save.helpSeen;
   const s = save.scene;
-  const go = { 71: platesNight, 72: platesTreasury, 73: platesTreasury, 81: shipBuild, 82: shipSail, 91: jaredMount, 92: jaredVoyage, 101: ammonFlocks, 102: ammonRaiders, 111: almaBurdens, 112: almaEscape, 121: stripDecoy, 122: stripBattle }[s];
+  const go = { 131: () => bountVoice(false), 132: () => bountVoice(true), 141: dreamRod, 142: dreamRod, 151: abinadiCourt, 152: abinadiFlee, 161: prisonCell, 162: prisonCell, 171: moroniRally, 172: () => gatherFortify(MORONI_OPTS), 173: () => { State.forts = (loadSave() || {}).forts; return gatherSiege(MORONI_OPTS); }, 181: moroniHill, 182: moroniHill, 71: platesNight, 72: platesTreasury, 73: platesTreasury, 81: shipBuild, 82: shipSail, 91: jaredMount, 92: jaredVoyage, 101: ammonFlocks, 102: ammonRaiders, 103: ammonLamoni, 111: almaBurdens, 112: almaEscape, 121: stripDecoy, 122: stripBattle }[s];
   if (go) { State.chapter = chapterOfScene(s); await go(); return; }
   if (s >= 61) { State.chapter = 'storm'; if (s === 61) await stormEscape(); else await stormDark(); return; }
   if (s >= 51) { State.chapter = 'gathering'; State.forts = save.forts || null; if (s <= 52) await gatherLetter(s === 52); else if (s === 53) await gatherFortify(); else await gatherSiege(); return; }
@@ -1837,7 +1885,7 @@ layout();
 G.fade = 4;
 goTitle();
 requestAnimationFrame(loop);
-window.__game = { platesNight: () => platesNight(), platesTreasury: () => platesTreasury(), platesZoram: () => platesZoram(), shipBuild: () => shipBuild(), shipSail: () => shipSail(), jaredMount: () => jaredMount(), jaredVoyage: () => jaredVoyage(), ammonFlocks: () => ammonFlocks(), ammonRaiders: () => ammonRaiders(), almaBurdens: () => almaBurdens(), almaEscape: () => almaEscape(), stripDecoy: () => stripDecoy(), stripBattle: () => stripBattle(), buildShore: () => buildShore(), buildMount: () => buildMount(), buildSebus: () => buildSebus(), startStorm: () => startStorm(), stormEscape: () => stormEscape(), stormDark: () => stormDark(), startGathering: () => startGathering(), gatherVillages: () => gatherVillages(), gatherFortify: () => gatherFortify(), gatherSiege: () => gatherSiege(), buildGather: () => buildGather(), goMap: (f) => goMap(f), completeChapter: (i) => completeChapter(i), PROG, OUTSIDE: () => OUTSIDE, GARDEN: () => GARDEN, platesBook: (f) => platesBook(f), startSign: () => startSign(), signWarn: () => signWarn(), signPrayer: () => signPrayer(), signNight: () => signNight(), signStar: () => signStar(), CITY, cjTower: () => cjTower(), cjRun: () => cjRun(), cjPrison: () => cjPrison(), cjAccuse: () => cjAccuse(), cjHouse: () => cjHouse(), startChiefJudge: () => startChiefJudge(), State, Field, G, UI, Input, scene2, scene3, scene4, scene5, scene5Escape, ending, setMode, goTitle, startChapter2, ch2Outside, ch2Wall, ch2Escape, ch2Ending, get mode() { return mode; } };
+window.__game = { selfCheck: () => selfCheck(), mormonIntro: () => mormonIntro(), startStory: () => startStory(), ammonLamoni: () => ammonLamoni(), buildJerusalem: () => buildJerusalem(), buildBountiful: () => buildBountiful(), buildGather: t => buildGather(t), bountKids: () => bountVoice(true), bountVoice: () => bountVoice(false), dreamRod: () => dreamRod(), abinadiCourt: () => abinadiCourt(), abinadiFlee: () => abinadiFlee(), prisonCell: () => prisonCell(), moroniRally: () => moroniRally(), moroniFort: () => gatherFortify(MORONI_OPTS), moroniSiege: () => gatherSiege(MORONI_OPTS), moroniHill: () => moroniHill(), buildDream: () => buildDream(), buildJail: () => buildJail(), platesNight: () => platesNight(), platesTreasury: () => platesTreasury(), platesZoram: () => platesZoram(), shipBuild: () => shipBuild(), shipSail: () => shipSail(), jaredMount: () => jaredMount(), jaredVoyage: () => jaredVoyage(), ammonFlocks: () => ammonFlocks(), ammonRaiders: () => ammonRaiders(), almaBurdens: () => almaBurdens(), almaEscape: () => almaEscape(), stripDecoy: () => stripDecoy(), stripBattle: () => stripBattle(), buildShore: () => buildShore(), buildMount: () => buildMount(), buildSebus: () => buildSebus(), startStorm: () => startStorm(), stormEscape: () => stormEscape(), stormDark: () => stormDark(), startGathering: () => startGathering(), gatherVillages: () => gatherVillages(), gatherFortify: () => gatherFortify(), gatherSiege: () => gatherSiege(), buildGather: () => buildGather(), goMap: (f) => goMap(f), completeChapter: (i) => completeChapter(i), PROG, OUTSIDE: () => OUTSIDE, GARDEN: () => GARDEN, platesBook: (f) => platesBook(f), startSign: () => startSign(), signWarn: () => signWarn(), signPrayer: () => signPrayer(), signNight: () => signNight(), signStar: () => signStar(), CITY, cjTower: () => cjTower(), cjRun: () => cjRun(), cjPrison: () => cjPrison(), cjAccuse: () => cjAccuse(), cjHouse: () => cjHouse(), startChiefJudge: () => startChiefJudge(), State, Field, G, UI, Input, scene2, scene3, scene4, scene5, scene5Escape, ending, setMode, goTitle, startChapter2, ch2Outside, ch2Wall, ch2Escape, ch2Ending, get mode() { return mode; } };
 
 /* ================= CHAPTER 2: SAMUEL ON THE WALL (Helaman 13–16) ================= */
 function buildOutside() {
@@ -2265,7 +2313,7 @@ const FRAGS = {
   st1: { ch: 'storm', x: T(14) + 4, y: T(31) + 4, ref: '3 NEPHI 9:14', text: 'Behold, mine arm of mercy is extended towards you, and whosoever will come, him will I receive.' },
   st2: { ch: 'storm', x: T(44) + 4, y: T(38) + 4, ref: '3 NEPHI 10:6', text: 'How oft will I gather you as a hen gathereth her chickens under her wings, if ye will repent and return unto me with full purpose of heart.' },
   pl1: { ch: 'plates', x: T(3) + 4, y: T(44) + 4, ref: '1 NEPHI 1:20', text: 'The tender mercies of the Lord are over all those whom he hath chosen, because of their faith, to make them mighty even unto the power of deliverance.' },
-  pl2: { ch: 'plates', x: T(44) + 4, y: T(31) + 4, ref: '1 NEPHI 4:1', text: 'Let us be faithful in keeping the commandments of the Lord; for behold he is mightier than all the earth.' },
+  pl2: { ch: 'plates', x: T(60) + 4, y: T(31) + 4, ref: '1 NEPHI 4:1', text: 'Let us be faithful in keeping the commandments of the Lord; for behold he is mightier than all the earth.' },
   sh1: { ch: 'ship', x: T(2) + 4, y: T(16) + 4, ref: '1 NEPHI 17:3', text: 'If it so be that the children of men keep the commandments of God he doth nourish them, and strengthen them.' },
   sh2: { ch: 'ship', x: T(37) + 4, y: T(16) + 4, ref: '1 NEPHI 17:50', text: 'If God had commanded me to do all things I could do them.' },
   jr1: { ch: 'jared', x: T(19) + 4, y: T(34) + 4, ref: 'ETHER 12:6', text: 'Ye receive no witness until after the trial of your faith.' },
@@ -2276,6 +2324,18 @@ const FRAGS = {
   al2: { ch: 'alma', x: T(2) + 4, y: T(46) + 4, ref: 'MOSIAH 24:15', text: 'The Lord did strengthen them that they could bear up their burdens with ease, and they did submit cheerfully and with patience to all the will of the Lord.' },
   sp1: { ch: 'striplings', x: T(11) + 4, y: T(39) + 4, ref: 'ALMA 57:21', text: 'They did obey and observe to perform every word of command with exactness.' },
   sp2: { ch: 'striplings', x: T(46) + 4, y: T(29) + 4, ref: 'ALMA 53:20', text: 'They were men who were true at all times in whatsoever thing they were entrusted.' },
+  bo1: { ch: 'bountiful', x: T(3) + 4, y: T(29) + 4, ref: '3 NEPHI 11:11', text: 'Behold, I am the light and the life of the world.' },
+  bo2: { ch: 'bountiful', x: T(44) + 4, y: T(5) + 4, ref: '3 NEPHI 12:16', text: 'Let your light so shine before this people, that they may see your good works and glorify your Father who is in heaven.' },
+  dr1: { ch: 'dream', x: T(3) + 4, y: T(30) + 4, ref: '1 NEPHI 8:30', text: 'They did press their way forward, continually holding fast to the rod of iron, until they came forth and fell down and partook of the fruit of the tree.' },
+  dr2: { ch: 'dream', x: T(26) + 4, y: T(14) + 4, ref: '1 NEPHI 11:22', text: 'The love of God, which sheddeth itself abroad in the hearts of the children of men; wherefore, it is the most desirable above all things.' },
+  ab1: { ch: 'abinadi', x: T(3) + 4, y: T(12) + 4, ref: 'MOSIAH 16:9', text: 'He is the light and the life of the world; yea, a light that is endless, that can never be darkened.' },
+  ab2: { ch: 'abinadi', x: T(46) + 4, y: T(19) + 4, ref: 'MOSIAH 18:10', text: 'Serve him and keep his commandments, that he may pour out his Spirit more abundantly upon you.' },
+  an1: { ch: 'ammonihah', x: T(2) + 4, y: T(6) + 4, ref: 'ALMA 37:6', text: 'By small and simple things are great things brought to pass.' },
+  an2: { ch: 'ammonihah', x: T(21) + 4, y: T(14) + 4, ref: 'ALMA 34:32', text: 'This life is the time for men to prepare to meet God.' },
+  mo1: { ch: 'moroni', x: T(60) + 4, y: T(43) + 4, ref: 'ALMA 48:17', text: 'If all men had been, and were, and ever would be, like unto Moroni, behold, the very powers of hell would have been shaken forever.' },
+  mo2: { ch: 'moroni', x: T(3) + 4, y: T(11) + 4, ref: 'ALMA 48:13', text: 'Moroni was a man who was firm in the faith of Christ.' },
+  ma1: { ch: 'moroniAlone', x: T(19) + 4, y: T(34) + 4, ref: 'MORONI 7:47', text: 'Charity is the pure love of Christ, and it endureth forever.' },
+  ma2: { ch: 'moroniAlone', x: T(27) + 4, y: T(21) + 4, ref: 'ETHER 12:41', text: 'Seek this Jesus of whom the prophets and apostles have written.' },
   sg2: { ch: 'sign', x: T(47) + 4, y: T(10) + 4, ref: '3 NEPHI 1:20', text: 'The words which came unto Nephi were fulfilled, according as they had been spoken.' },
 };
 const fragsOf = ch => Object.keys(FRAGS).filter(id => FRAGS[id].ch === ch);
@@ -2294,9 +2354,13 @@ const CHAPTERS = [
   { id: 'plates', title: 'THE BRASS PLATES', ref: '1 NEPHI 3-4', region: 'old', x: 122, y: 32, from: 71, start: () => startPlates() },
   { id: 'ship', title: 'THE SHIP', ref: '1 NEPHI 17-18', region: 'old', x: 62, y: 86, from: 81, start: () => startShip() },
   { id: 'jared', title: 'THE SIXTEEN STONES', ref: 'ETHER 2-6', region: 'old', x: 24, y: 60, from: 91, start: () => startJared() },
+  { id: 'dream', title: 'LEHI’S DREAM', ref: '1 NEPHI 8', region: 'old', x: 92, y: 60, from: 141, start: () => startDream() },
   { id: 'toLand', title: 'TO THE PROMISED LAND', ref: 'SAIL ACROSS THE SEA', region: 'old', x: 140, y: 100, portal: 'land' },
+  { id: 'abinadi', title: 'ABINADI', ref: 'MOSIAH 11-18', x: 56, y: 92, from: 151, start: () => startAbinadi() },
   { id: 'alma', title: 'ALMA’S PEOPLE', ref: 'MOSIAH 24', x: 36, y: 99, from: 111, start: () => startAlma() },
+  { id: 'ammonihah', title: 'THE PRISON WALLS', ref: 'ALMA 14', x: 18, y: 64, from: 161, start: () => startAmmonihah() },
   { id: 'ammon', title: 'AMMON', ref: 'ALMA 17-18', x: 76, y: 99, from: 101, start: () => startAmmon() },
+  { id: 'moroni', title: 'TITLE OF LIBERTY', ref: 'ALMA 46-50', x: 134, y: 44, from: 171, start: () => startMoroni() },
   { id: 'striplings', title: 'THE 2,000 WARRIORS', ref: 'ALMA 56-58', x: 118, y: 99, from: 121, start: () => startStriplings() },
   { id: 'servant', title: 'THE SERVANT', ref: 'HELAMAN 2', place: 'HELAMAN’S HOUSE', x: 47, y: 82, from: 2, start: () => newGame() },
   { id: 'judge', title: 'THE CHIEF JUDGE', ref: 'HELAMAN 7-10', place: 'NEPHI’S GARDEN', x: 50, y: 60, from: 31, start: () => startChiefJudge() },
@@ -2304,11 +2368,12 @@ const CHAPTERS = [
   { id: 'sign', title: 'THE SIGN', ref: '3 NEPHI 1', place: 'THE MARKET', x: 66, y: 74, from: 41, start: () => startSign() },
   { id: 'gathering', title: 'THE GATHERING', ref: '3 NEPHI 3-4', place: 'THE STRONGHOLD', x: 78, y: 34, from: 51, start: () => startGathering() },
   { id: 'storm', title: 'THE GREAT STORM', ref: '3 NEPHI 8-10', place: 'ZARAHEMLA', x: 84, y: 56, from: 61, start: () => startStorm() },
-  { id: 'bountiful', title: 'BOUNTIFUL', ref: '3 NEPHI 11', place: 'THE TEMPLE', x: 58, y: 20, locked: true },
+  { id: 'bountiful', title: 'BOUNTIFUL', ref: '3 NEPHI 11', place: 'THE TEMPLE', x: 58, y: 20, from: 131, start: () => startBountiful() },
+  { id: 'moroniAlone', title: 'MORONI ALONE', ref: 'MORONI 1, 10', x: 112, y: 20, from: 181, start: () => startMoroniAlone() },
   { id: 'toOld', title: 'TO THE OLD WORLD', ref: 'SAIL ACROSS THE SEA', x: 5, y: 26, portal: 'old' },
   { id: 'record', title: 'THE RECORD', ref: 'BONUS', place: 'ALL PLATES FOUND', x: 24, y: 42, bonus: true, start: () => recordScene() },
 ];
-function chapterOfScene(s) { if (!s) return null; if (s >= 121) return 'striplings'; if (s >= 111) return 'alma'; if (s >= 101) return 'ammon'; if (s >= 91) return 'jared'; if (s >= 81) return 'ship'; if (s >= 71) return 'plates'; if (s >= 61) return 'storm'; if (s >= 51) return 'gathering'; if (s >= 41) return 'sign'; if (s >= 31) return 'judge'; if (s >= 21) return 'samuel'; if (s >= 2) return 'servant'; return null; }
+function chapterOfScene(s) { if (!s) return null; if (s >= 181) return 'moroniAlone'; if (s >= 171) return 'moroni'; if (s >= 161) return 'ammonihah'; if (s >= 151) return 'abinadi'; if (s >= 141) return 'dream'; if (s >= 131) return 'bountiful'; if (s >= 121) return 'striplings'; if (s >= 111) return 'alma'; if (s >= 101) return 'ammon'; if (s >= 91) return 'jared'; if (s >= 81) return 'ship'; if (s >= 71) return 'plates'; if (s >= 61) return 'storm'; if (s >= 51) return 'gathering'; if (s >= 41) return 'sign'; if (s >= 31) return 'judge'; if (s >= 21) return 'samuel'; if (s >= 2) return 'servant'; return null; }
 function mapNodes(region = 'land') { return CHAPTERS.filter(c => (c.region || 'land') === region && (!c.bonus || allFrags())); }
 function drawWorld(t) {
   G.lighting = 'day';
@@ -2377,8 +2442,10 @@ function mapMode(focus) {
           if (!n.bonus && save && chapterOfScene(save.scene) === n.id && save.scene >= n.from) {
             const c = await choose(['Continue', 'Start from the beginning', 'Back'], { title: n.title });
             if (c === 2) { this.busy = false; return; }
+            PROG.story = false; saveProg();
             await fadeOut(); if (c === 0) await continueGame(save); else await n.start(); return;
           }
+          PROG.story = false; saveProg();
           await fadeOut(); await n.start();
         })();
       }
@@ -2418,10 +2485,16 @@ async function completeChapter(id) {
   const ch = CHAPTERS.find(c => c.id === id);
   Sound.play('glory');
   const got = fragsOf(id).filter(f => PROG.frags[f]).length, tot = fragsOf(id).length;
-  const lines = [{ t: 'COMPLETE', big: 1 }, '', ch.title, { t: ch.ref, dim: 1 }, '', 'PLATES FOUND ' + got + '/' + tot, first ? 'FAITH +3' : '', 'FAITH ' + faith()];
+  const lines = [{ t: 'COMPLETE', big: 1 }, '', ch.title, { t: 'READ IT IN ' + ch.ref, dim: 1 }, '', 'PLATES FOUND ' + got + '/' + tot, first ? 'FAITH +3' : '', 'FAITH ' + faith()];
   const a = ABILITIES.find(a => before < a.need && faith() >= a.need);
   if (a) lines.push('', 'NEW GIFT: ' + a.name);
   await showCard(lines, { min: 100 });
+  await mormonNote(id);
+  if (PROG.story) {
+    const nx = STORY_ORDER[STORY_ORDER.indexOf(id) + 1];
+    if (nx) { await storyStart(CHAPTERS.find(c => c.id === nx)); return; }
+    PROG.story = false; saveProg();
+  }
   const order = CHAPTERS.filter(c => !c.bonus && !c.portal);
   const next = order[order.findIndex(c => c.id === id) + 1];
   await goMap(next ? next.id : id);
@@ -2616,15 +2689,16 @@ async function platesNight() {
   State.chapter = 'plates'; State.scene = 71; UI.notebookAllowed = false;
   writeSave({ chapter: 'plates', scene: 71 });
   await sceneBanner(1, 'BY NIGHT');
-  const START = [T(6) + 4, T(43), 'up'], MID = [T(30) + 4, T(20) + 4, 'right'];
+  const JERUSALEM = buildJerusalem();
+  const START = [T(6) + 4, T(43), 'up'], MID = [T(37) + 4, T(16), 'right'];
   let cp = START;
   const guard = (x, y, path, sp) => makeScoffer(x, y, path, { spr: SPR.guard, speed: sp });
   const npcs = [
-    guard(T(12), T(20) + 4, [[T(12), T(20) + 4, 40], [T(26), T(20) + 4, 40]], 0.45),
-    guard(T(42) + 4, T(12), [[T(42) + 4, T(12), 50, 'down'], [T(42) + 4, T(30), 50, 'up']], 0.4),
-    guard(T(14), T(31) + 4, [[T(14), T(31) + 4, 40], [T(40), T(31) + 4, 40]], 0.4),
-    makeLookout(T(51) + 4, T(14), [['left', 120], ['down', 100]], { spr: SPR.guard }),
-    makeLookout(T(10) + 4, T(26), [['down', 140], ['up', 110]], { spr: SPR.guard }),
+    guard(T(8), T(22) + 4, [[T(8), T(22) + 4, 40], [T(34), T(22) + 4, 40]], 0.45),
+    guard(T(37) + 4, T(14), [[T(37) + 4, T(14), 50, 'down'], [T(37) + 4, T(30), 50, 'up']], 0.4),
+    guard(T(14), T(34) + 4, [[T(14), T(34) + 4, 40], [T(52), T(34) + 4, 40]], 0.4),
+    makeLookout(T(52) + 4, T(15), [['left', 120], ['down', 100]], { spr: SPR.guard }),
+    makeLookout(T(11) + 4, T(25), [['down', 140], ['up', 110]], { spr: SPR.guard }),
   ];
   const arrive = async () => {
     cinema(true);
@@ -2637,30 +2711,31 @@ async function platesNight() {
   };
   const cfg = {
     start: cp.slice(0, 2), startDir: cp[2], npcs, lighting: 'night', playerSpr: SPR.nephiY, frags: ['pl1'],
-    target: () => ({ x: T(47) + 4, y: T(11) }),
-    triggers: [{ x: T(46), y: T(10), w: T(3), h: T(2), fn: arrive }],
-    tick() { const P = Field.P; if (cp === START && P.x > T(28) && P.y < T(22)) { cp = MID; Sound.sfx('learn'); } },
+    target: () => ({ x: T(48), y: T(11) }),
+    triggers: [{ x: T(46), y: T(10), w: T(4), h: T(2), fn: arrive }],
+    tick() { const P = Field.P; if (cp === START && P.x > T(35) && P.y < T(20)) { cp = MID; Sound.sfx('learn'); } },
     async onCaught() {
       await say('Halt! Who walks the streets at this hour?', 'GUARD');
       await fadeOut(); Field.P.x = cp[0]; Field.P.y = cp[1]; Field.P.dir = cp[2]; Field.resetNPCs(); Field.snapCam(); await fadeIn();
     },
     hud() { frame(0, 0, 160, 13); text('FIND LABAN’S HOUSE', 5, 3, 3); },
   };
-  Field.setup(CITY, cfg);
+  Field.setup(JERUSALEM, cfg);
   setMode(fieldMode()); Sound.play('night');
   await fadeIn();
-  await sayAll(['Nephi crept into Jerusalem by night. His brothers hid outside the walls.', 'Reach Laban’s house in the north-east without being seen by the guards.']);
+  await sayAll(['Nephi crept into Jerusalem by night. His brothers hid outside the walls.', 'Reach the gate of Laban’s courtyard in the north-east without being seen by the guards.']);
 }
 async function platesTreasury() {
   State.scene = 72; UI.notebookAllowed = false;
   writeSave({ chapter: 'plates', scene: 72 });
   await sceneBanner(2, 'THE TREASURY');
-  const zoram = ent({ x: T(31) + 4, y: T(12) + 4, dir: 'up', kind: 'npc', spr: SPR.zoram, solid: false });
-  const START = [T(31) + 4, T(11) + 2];
+  const JERUSALEM = buildJerusalem();
+  const zoram = ent({ x: T(30) + 4, y: T(22) + 6, dir: 'up', kind: 'npc', spr: SPR.zoram, solid: false });
+  const START = [T(30) + 4, T(21) + 4];
   let doubt = 0, following = false, failing = false;
   const npcs = [
-    makeGuard(T(14), T(20) + 4, [[T(14), T(20) + 4, 60], [T(40), T(20) + 4, 60]]),
-    makeGuard(T(52), T(10), [[T(52), T(10), 60, 'down'], [T(52), T(18), 60, 'up']]),
+    makeGuard(T(40), T(22) + 4, [[T(40), T(22) + 4, 60], [T(54), T(22) + 4, 60]]),
+    makeGuard(T(56) + 4, T(14), [[T(56) + 4, T(14), 60, 'down'], [T(56) + 4, T(24), 60, 'up']]),
     zoram,
   ];
   const cfg = {
@@ -2684,7 +2759,7 @@ async function platesTreasury() {
     },
     hud() { frame(0, 0, 160, 13); text('ZORAM’S DOUBT', 5, 3, 3); rect(88, 4, 66, 5, 3); rect(89, 5, Math.round(64 * Math.min(1, doubt / 240)), 3, addColor('#c2453a')); },
   };
-  Field.setup(CITY, cfg);
+  Field.setup(JERUSALEM, cfg);
   setMode(fieldMode()); Sound.play('night');
   await fadeIn();
   await sayAll([
@@ -3012,7 +3087,7 @@ async function ammonRaiders() {
     await sayAll(['The robbers fled, astonished at the power of Ammon, for they could not strike him.', 'The servants carried the tale to King Lamoni, who was astonished.', ['KING LAMONI', 'Surely, this is more than a man.']]);
     await say('Because of Ammon’s faithful service, the king’s heart was opened to hear the word of God.');
     await fadeOut(false, 8); cinema(false); G.bars = 0;
-    await completeChapter('ammon');
+    await ammonLamoni();
   };
   const cfg = {
     start: [T(10), T(15)], startDir: 'right', npcs: [], lighting: 'day', playerSpr: SPR.ammon, target: () => null, tick,
@@ -3047,7 +3122,7 @@ async function almaBurdens() {
   State.chapter = 'alma'; State.scene = 111; UI.notebookAllowed = false;
   writeSave({ chapter: 'alma', scene: 111 });
   await sceneBanner(1, 'BURDENS');
-  const MAP = buildGather(); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
+  const MAP = buildGather('red'); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
   const PILE = { x: T(30) + 4, y: T(41) }, STORE = { x: T(30) + 4, y: T(10) };
   let carrying = false, delivered = 0, light = false;
   const alma = ent({ x: T(27), y: T(10), dir: 'down', kind: 'npc', spr: SPR.alma, solid: true });
@@ -3088,7 +3163,7 @@ async function almaEscape() {
   State.scene = 112; UI.notebookAllowed = false;
   writeSave({ chapter: 'alma', scene: 112 });
   await sceneBanner(2, 'THE DEEP SLEEP');
-  const MAP = buildGather(); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
+  const MAP = buildGather('red'); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
   const fams = [[20, 9], [24, 10], [37, 10], [41, 9]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'down', kind: 'npc', spr: [SPR.citizen, SPR.elder, SPR.five2, SPR.five][i], solid: false, talking: true, joined: false, hx: T(x) + 4, hy: T(y) + 4 }));
   const alma = ent({ x: T(30) + 4, y: T(10), dir: 'down', kind: 'npc', spr: SPR.alma, solid: false, joined: true });
   const g = (x, y, looks, off) => { const e = makeLookout(T(x) + 4, T(y) + 4, looks, { spr: SPR.warrior }); e.cone0 = e.cone; e.cone = null; e.sleepT = off; e.awake = false; return e; };
@@ -3143,7 +3218,7 @@ async function stripDecoy() {
   State.chapter = 'striplings'; State.scene = 121; UI.notebookAllowed = false;
   writeSave({ chapter: 'striplings', scene: 121 });
   await sceneBanner(1, 'THE DECOY');
-  const MAP = buildGather(); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
+  const MAP = buildGather('jungle'); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
   const START = [T(30) + 4, T(45)];
   const youths = Array.from({ length: 8 }, (_, i) => ent({ x: START[0], y: START[1] + 4 + i * 4, dir: 'up', kind: 'npc', spr: i % 2 ? SPR.youth2 : SPR.youth, solid: false }));
   youths.forEach((y, i) => { y.y = START[1] + 2 + i * 2; });
@@ -3194,7 +3269,7 @@ async function stripBattle() {
   State.scene = 122; UI.notebookAllowed = false;
   writeSave({ chapter: 'striplings', scene: 122 });
   await sceneBanner(2, 'NOT ONE FELL');
-  const MAP = buildGather(); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
+  const MAP = buildGather('jungle'); applyForts(MAP, { wall: [0, 0, 0], tower: [false, false, false] });
   const xs = [19, 22, 25, 28, 33, 36, 39, 42];
   const youths = xs.map((x, i) => ent({ x: T(x) + 4, y: T(21) + 4, dir: 'down', kind: 'npc', spr: i % 2 ? SPR.youth2 : SPR.youth, solid: true, down: 0 }));
   const foes = [];
@@ -3239,6 +3314,721 @@ async function stripBattle() {
   await fadeIn();
   await sayAll(['The young warriors turned and fell upon the Lamanites from behind.', 'Press A beside a Lamanite to drive him back. If a warrior falls, run to him and press A to lift him up before his bar runs out.']);
   phase = 'fight'; Sound.play('climax');
+}
+
+/* ================= CHAPTER: BOUNTIFUL (3 Nephi 11) ================= */
+function drawLightFigure(x, y, k) {
+  x = Math.round(x); y = Math.round(y);
+  const halo = addColor('#fff3b8'), robe = addColor('#fffdf0'), shade = addColor('#efe6d0'), sash = addColor('#e8ae3a');
+  litDraw = 2;
+  const R = 14 + Math.round(3 * Math.sin(G.frame * 0.05));
+  for (let a = 0; a < 6.28; a += 0.2) { pset(x + Math.round(Math.cos(a) * R), y - 10 + Math.round(Math.sin(a) * R * 1.2), halo); if (k > 0.5) pset(x + Math.round(Math.cos(a) * (R + 5)), y - 10 + Math.round(Math.sin(a) * (R + 5) * 1.2), halo); }
+  rect(x - 3, y - 22, 6, 6, robe); rect(x - 5, y - 16, 10, 16, robe); rect(x + 3, y - 16, 2, 16, shade); rect(x - 5, y - 9, 10, 1, sash);
+  rect(x - 7, y - 15, 2, 6, robe); rect(x + 5, y - 15, 2, 6, robe);
+  litDraw = 0;
+}
+/* ================= JERUSALEM (Brass Plates) ================= */
+function buildJerusalem() {
+  const m = gridOf(64, 48, '.');
+  const { set, fill } = mapTools(m);
+  const bldJ = (x, y, w, h, door, wins = []) => { fill(x, y, w, h - 2, 'Q'); fill(x, y + h - 3, w, 1, 'q'); fill(x, y + h - 2, w, 2, 'Y'); wins.forEach(i => set(x + i, y + h - 2, 'w')); if (door != null) { set(x + door, y + h - 2, 'd'); set(x + door, y + h - 1, 'D'); } };
+  fill(0, 0, 64, 2, 'Z'); fill(0, 46, 64, 2, 'Z'); fill(0, 0, 2, 48, 'Z'); fill(62, 0, 2, 48, 'Z');
+  set(62, 14, 'g'); set(62, 15, 'g'); set(63, 14, 'g'); set(63, 15, 'g');
+  // the temple on its mount, north-west
+  fill(2, 2, 19, 16, 'p');
+  fill(5, 2, 14, 5, 'Q'); fill(5, 7, 14, 1, 'q'); fill(5, 8, 14, 2, 'J');
+  for (const x of [6, 9, 15, 17]) { set(x, 8, 'I'); set(x, 9, 'I'); }
+  set(11, 8, 'd'); set(12, 8, 'd'); set(11, 9, 'D'); set(12, 9, 'D');
+  fill(8, 10, 8, 2, '=');
+  for (const [x, y] of [[3, 4], [3, 9], [3, 15], [19, 4], [19, 9], [19, 15], [8, 15], [15, 15]]) set(x, y, 'V');
+  set(7, 12, 'L'); set(16, 12, 'L');
+  // houses between the temple and Laban's estate
+  bldJ(24, 2, 6, 7, 3, [1]); bldJ(31, 2, 7, 7, 2, [5]);
+  // Laban's walled estate, north-east
+  fill(41, 2, 14, 11, 'p');
+  fill(41, 2, 1, 11, 'Y'); fill(54, 2, 1, 11, 'Y'); fill(41, 12, 14, 1, 'Y'); set(47, 12, 'p'); set(48, 12, 'p');
+  bldJ(43, 2, 10, 8, 5, [1, 8]);
+  set(43, 10, 'V'); set(52, 10, 'V'); set(46, 13, 'L'); set(49, 13, 'L');
+  bldJ(56, 3, 6, 7, 3, [1]);
+  // Laban's treasury, in the middle of the city
+  bldJ(25, 13, 10, 8, 5, [1, 8]);
+  set(24, 19, 'L'); set(35, 19, 'L');
+  // west quarter
+  bldJ(3, 26, 8, 7, 4, [1, 6]); bldJ(13, 26, 8, 7, 3, [6]);
+  bldJ(3, 36, 8, 6, 4, [2]); bldJ(13, 36, 8, 6, 3, []);
+  for (const [x, y] of [[2, 19], [12, 19], [20, 19], [11, 34]]) set(x, y, 'V');
+  // market and the pool
+  for (const [x, y] of [[25, 27], [26, 27], [29, 27], [32, 27], [33, 27], [25, 30], [33, 30]]) set(x, y, 'S');
+  fill(27, 38, 5, 3, '~'); set(26, 37, 'L'); set(32, 37, 'L');
+  for (const [x, y] of [[25, 43], [34, 43], [25, 37], [34, 41]]) set(x, y, 'V');
+  // east quarter
+  bldJ(39, 26, 7, 7, 3, [1, 5]); bldJ(47, 26, 8, 7, 4, [2, 6]);
+  bldJ(39, 37, 7, 7, 3, [5]); bldJ(47, 37, 8, 7, 4, [1]);
+  for (const [x, y] of [[59, 27], [60, 35], [59, 42], [40, 19], [52, 19]]) set(x, y, 'V');
+  for (const x of [8, 18, 44, 54]) set(x, 25, 'L');
+  return new TileMap(m.map(r => r.join('')));
+}
+
+/* ================= BOUNTIFUL (temple grounds) ================= */
+function buildBountiful() {
+  const m = gridOf(48, 36, ',');
+  const { set, fill } = mapTools(m);
+  fill(0, 0, 48, 2, 'H'); fill(0, 0, 1, 36, 'H'); fill(47, 0, 1, 36, 'H'); fill(0, 34, 48, 2, 'H');
+  fill(16, 2, 16, 5, 'Q'); fill(16, 7, 16, 1, 'q'); fill(16, 8, 16, 2, 'J');
+  for (const x of [17, 20, 27, 30]) { set(x, 8, 'I'); set(x, 9, 'I'); }
+  set(23, 8, 'd'); set(24, 8, 'd'); set(23, 9, 'D'); set(24, 9, 'D');
+  fill(19, 10, 10, 2, '=');
+  fill(13, 12, 22, 9, 'p');
+  set(15, 11, 'L'); set(32, 11, 'L'); set(13, 20, 'L'); set(34, 20, 'L');
+  set(14, 13, 'T'); set(33, 13, 'T');
+  fill(23, 21, 2, 10, 'p');
+  fill(1, 31, 46, 2, '~'); fill(23, 31, 2, 2, '.');
+  for (const [x, y] of [[3, 3], [7, 4], [11, 3], [36, 3], [41, 4], [45, 3], [3, 10], [9, 9], [39, 10], [44, 9], [5, 16], [10, 19], [38, 16], [43, 19],
+    [3, 23], [8, 27], [14, 25], [19, 28], [29, 25], [33, 28], [40, 23], [44, 27], [5, 33], [16, 33], [31, 33], [42, 33]]) set(x, y, 'T');
+  for (const [x, y] of [[6, 21], [7, 21], [40, 25], [41, 25], [12, 6]]) set(x, y, 'X');
+  return new TileMap(m.map(r => r.join('')));
+}
+function kidify(spr) {
+  const keep = [0, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 15];
+  const shrink = a => { const b = new Uint8Array(256).fill(255); keep.forEach((sy, i) => { for (let x = 0; x < 16; x++) b[(i + 4) * 16 + x] = a[sy * 16 + x]; }); return b; };
+  const o = Object.assign({}, spr, { prop: null });
+  for (const d of ['down', 'up', 'side']) o[d] = spr[d].map(shrink);
+  o.lying = spr.lying; return o;
+}
+function drawAngel(x, y) {
+  x = Math.round(x); y = Math.round(y); litDraw = 2;
+  const w = addColor('#fffdf0'), g = addColor('#ffd968'), f = addColor('#ff9a3c');
+  rect(x - 2, y - 12, 4, 4, w); rect(x - 3, y - 8, 6, 9, w); rect(x - 7, y - 9, 3, 4, w); rect(x + 4, y - 9, 3, 4, w);
+  pset(x - 4, y + 2, f); pset(x + 3, y + 2, g); pset(x, y + 3, f);
+  litDraw = 0;
+}
+async function startBountiful() {
+  const prev = loadSave() || {};
+  State.chapter = 'bountiful';
+  writeSave({ chapter: 'bountiful', scene: 131, helpSeen: !!prev.helpSeen });
+  Sound.play(null);
+  await showCard(['AFTER THE DARKNESS,', 'A GREAT MULTITUDE', 'GATHERED AT THE', 'TEMPLE IN THE LAND', 'BOUNTIFUL, MARVELING', 'AT THE GREAT CHANGE.', '', { t: '3 NEPHI 11:1', dim: 1 }], { min: 70 });
+  await bountVoice();
+}
+async function bountVoice(resume) {
+  resume = !!resume;
+  State.chapter = 'bountiful'; State.scene = resume ? 132 : 131; UI.notebookAllowed = false;
+  writeSave({ chapter: 'bountiful', scene: State.scene });
+  await sceneBanner(resume ? 2 : 1, resume ? 'THE LITTLE ONES' : 'THE VOICE');
+  const MAP = buildBountiful();
+  const spots = [[17, 14], [19, 16], [26, 14], [28, 16], [30, 17], [18, 18], [23, 17], [27, 13], [15, 17], [32, 16]];
+  const crowd = spots.map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'up', kind: 'npc', spr: [SPR.citizen, SPR.five, SPR.five2, SPR.elder, SPR.five3][i % 5], solid: true }));
+  const FIG = { x: T(23) + 8, y: T(11) + 4 };
+  const KS = [SPR.kid1, SPR.kid2, SPR.kid3, SPR.kid1, SPR.kid2];
+  const kids = [[4, 6], [43, 7], [6, 26], [42, 29], [9, 14]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'down', kind: 'npc', spr: KS[i], solid: false, talking: false, hidden: true, st: 'wait' }));
+  const SEATS = [[-22, 16], [-12, 22], [0, 25], [12, 22], [22, 16]];
+  let hear = 0, heard = 0, phase = resume ? 'kids' : 'listen', figY = resume ? FIG.y : -40, figK = resume ? 1 : 0, done = false, angels = null, seated = 0;
+  const inPlaza = P => P.x > T(13) && P.x < T(35) && P.y > T(12) && P.y < T(21);
+  const voice = async () => {
+    heard++; hear = 0; Sound.sfx('learn');
+    if (heard === 1) await sayAll(['They heard a voice as if it came out of heaven. It was a small voice, and yet it did pierce them to the very soul.', 'But they understood it not.']);
+    else if (heard === 2) await say('Again they heard the voice, and they understood it not.');
+    else { phase = 'descend'; await descend(); }
+  };
+  const descend = async () => {
+    await say('The third time they did open their ears to hear it, and their eyes were towards heaven.');
+    Sound.play(null);
+    await showCard(['“BEHOLD MY BELOVED', 'SON, IN WHOM I AM', 'WELL PLEASED, IN WHOM', 'I HAVE GLORIFIED MY', 'NAME—HEAR YE HIM.”', '', { t: '3 NEPHI 11:7', dim: 1 }], { light: true, min: 100 });
+    setMode(fieldMode()); cinema(true); await fadeIn();
+    await panTo(FIG.x, FIG.y + 20, 60);
+    Sound.play('glory');
+    crowd.forEach(c => { c.dir = 'up'; }); Field.P.dir = 'up';
+    for (let i = 0; i <= 240; i++) { figY = -40 + (FIG.y + 40) * (1 - Math.pow(1 - i / 240, 2)); figK = i / 240; await wait(1); }
+    await say('They saw a Man descending out of heaven, clothed in a white robe. He came down and stood in the midst of them.');
+    await showCard(['“BEHOLD, I AM JESUS', 'CHRIST, WHOM THE', 'PROPHETS TESTIFIED', 'SHALL COME INTO', 'THE WORLD.”', '', { t: '3 NEPHI 11:10', dim: 1 }], { light: true, min: 110 });
+    setMode(fieldMode()); await fadeIn();
+    crowd.forEach(c => { c.lying = true; });
+    await say('The whole multitude fell to the earth.');
+    await say('He invited them to arise and come forth, one by one, to see and to feel the prints of the nails in his hands and in his feet.');
+    crowd.forEach(c => { c.lying = false; });
+    releaseCam(); cinema(false);
+    phase = 'oneByOne';
+    for (const c of crowd.slice(0, 4)) { const hx = c.x, hy = c.y; await walkTo(c, FIG.x - 10, FIG.y + 14, 0.8); c.dir = 'up'; await wait(30); await walkTo(c, hx, hy, 0.8); }
+    await say('Now it is your turn. Go forward to him.');
+    phase = 'turn';
+  };
+  const startKids = async () => {
+    State.scene = 132; writeSave({ chapter: 'bountiful', scene: 132 });
+    await say('He commanded that their little children should be brought unto him.');
+    kids.forEach(k => { k.hidden = false; k.talking = true; });
+    await say('Find the five little ones playing in the gardens and bring them to Jesus. They will follow you.');
+    phase = 'kids';
+  };
+  const blessing = async () => {
+    phase = 'bless'; cinema(true);
+    await panTo(FIG.x, FIG.y + 16, 50);
+    await showCard(['AND HE TOOK THEIR', 'LITTLE CHILDREN, ONE', 'BY ONE, AND BLESSED', 'THEM, AND PRAYED UNTO', 'THE FATHER FOR THEM.', '', { t: '3 NEPHI 17:21', dim: 1 }], { light: true, min: 100 });
+    setMode(fieldMode()); await fadeIn();
+    Sound.play('glory');
+    angels = Array.from({ length: 8 }, (_, i) => ({ a: i * Math.PI / 4, h: 120 + i * 6 }));
+    for (let i = 0; i < 300; i++) { angels.forEach(an => { an.h = Math.max(0, an.h - 0.7); an.a += 0.012; }); await wait(1); }
+    await showCard(['THEY SAW ANGELS', 'DESCENDING OUT OF', 'HEAVEN... AND THEY', 'CAME DOWN AND', 'ENCIRCLED THOSE', 'LITTLE ONES ABOUT...', 'AND THE ANGELS DID', 'MINISTER UNTO THEM.', '', { t: '3 NEPHI 17:24', dim: 1 }], { light: true, min: 120 });
+    setMode(fieldMode()); await fadeIn();
+    await wait(90);
+    await fadeOut(false, 8); cinema(false); G.bars = 0; releaseCam();
+    await completeChapter('bountiful');
+  };
+  const cfg = {
+    start: resume ? [T(23) + 4, T(19)] : [T(23) + 4, T(26)], startDir: 'up', npcs: [...crowd, ...kids], lighting: 'day', playerSpr: SPR.believer, frags: ['bo1', 'bo2'],
+    target: () => phase === 'listen' ? (inPlaza(Field.P) ? null : { x: T(23) + 4, y: T(16) })
+      : phase === 'turn' ? { x: FIG.x, y: FIG.y + 6 }
+      : phase === 'kids' ? (kids.some(k => k.st === 'follow') ? { x: FIG.x, y: FIG.y + 18 } : kids.find(k => k.st === 'wait')) : null,
+    interacts: [{ x: FIG.x, y: FIG.y + 14, r: 18, when: () => phase === 'turn' && !done, fn: async () => {
+      done = true; Field.P.dir = 'up';
+      await showCard(['THEY DID SEE WITH', 'THEIR EYES AND DID', 'FEEL WITH THEIR HANDS,', 'AND DID KNOW OF A', 'SURETY AND DID BEAR', 'RECORD, THAT IT', 'WAS HE.', '', { t: '3 NEPHI 11:15', dim: 1 }], { light: true, min: 110 });
+      setMode(fieldMode()); cinema(true); await fadeIn();
+      crowd.forEach(c => { c.lying = true; });
+      await sayAll([['THE MULTITUDE', 'Hosanna! Blessed be the name of the Most High God!'], 'And they did fall down at the feet of Jesus, and did worship him.']);
+      crowd.forEach(c => { c.lying = false; }); cinema(false); G.bars = 0;
+      await startKids();
+    } }],
+    tick() {
+      const P = Field.P;
+      if (phase === 'listen') {
+        if (inPlaza(P) && !P.moving) hear += 1; else if (P.moving) hear = Math.max(0, hear - 1.5);
+        if (hear >= 200) Field.runScript(voice);
+        return;
+      }
+      if (phase !== 'kids') return;
+      for (const k of kids) if (k.st === 'wait' && Math.hypot(k.x - P.x, k.y - P.y) < 18) { k.st = 'follow'; k.talking = false; Sound.sfx('learn'); }
+      const fol = kids.filter(k => k.st === 'follow');
+      followTrail(fol, 10);
+      if (fol.length && Math.hypot(P.x - FIG.x, P.y - FIG.y) < 34) {
+        for (const k of fol) { k.st = 'sat'; const [dx, dy] = SEATS[seated++]; walkTo(k, FIG.x + dx, FIG.y + dy, 0.7).then(() => { k.dir = 'up'; }); }
+        Field.trail = []; Sound.sfx('jingle');
+        if (seated >= kids.length) Field.runScript(async () => { await wait(70); await blessing(); });
+      }
+    },
+    drawOver(cx, cy) {
+      if (phase !== 'listen') drawLightFigure(FIG.x - cx, figY - cy, figK);
+      if (angels) for (const an of angels) drawAngel(FIG.x - cx + Math.cos(an.a) * 30, FIG.y + 18 - cy + Math.sin(an.a) * 16 - an.h);
+    },
+    hud() {
+      frame(0, 0, 160, 13);
+      if (phase === 'listen') { text('BE STILL ' + heard + '/3', 5, 3, 3); rect(90, 4, 64, 5, 3); rect(91, 5, Math.round(62 * hear / 200), 3, addColor('#5fa8d8')); }
+      else if (phase === 'kids') text('LITTLE ONES ' + seated + '/5', 5, 3, 3);
+      else text(phase === 'turn' ? 'GO FORWARD, ONE BY ONE' : 'THE TEMPLE IN BOUNTIFUL', 5, 3, 3);
+    },
+  };
+  Field.setup(MAP, cfg);
+  setMode(fieldMode()); Sound.play('house');
+  await fadeIn();
+  if (resume) { kids.forEach(k => { k.hidden = false; k.talking = true; }); await say('Find the five little ones playing in the gardens and bring them to Jesus. They will follow you.'); return; }
+  await sayAll(['Walk up to the temple plaza with the multitude.', 'Then stand still and listen. The voice is quiet, and you only hear it when you are still.']);
+  Sound.play(null);
+}
+
+/* ================= AMMON, scene 3: teaching King Lamoni (Alma 18) ================= */
+async function ammonLamoni() {
+  State.chapter = 'ammon'; State.scene = 103; UI.notebookAllowed = false;
+  writeSave({ chapter: 'ammon', scene: 103 });
+  await sceneBanner(3, 'THE KING’S QUESTION');
+  const HOUSE = buildHouseInterior();
+  const king = ent({ x: T(10), y: T(4) + 4, dir: 'down', kind: 'npc', spr: SPR.lamoni, solid: true });
+  const servants = [[4, 6], [16, 6], [4, 11], [16, 11]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: i % 2 ? 'left' : 'right', kind: 'npc', spr: SPR.citizen, solid: true }));
+  let talked = false;
+  const LESSONS = ['The creation of the world and of Adam', 'The fall of man', 'The records of his fathers, since Lehi', 'The plan of redemption and the coming of Christ'];
+  const teach = async () => {
+    talked = true; face(king, Field.P);
+    await sayAll([['KING LAMONI', 'Who art thou? Art thou that Great Spirit, who knows all things?'], ['AMMON', 'I am not.'], ['AMMON', 'Believest thou that there is a God?'], ['KING LAMONI', 'I do not know what that meaneth.'], ['AMMON', 'Believest thou that there is a Great Spirit?'], ['KING LAMONI', 'Yea.'], ['AMMON', 'This is God.']]);
+    await say('Now teach the king as Ammon did. Choose what to teach first, then next, in order.');
+    for (;;) {
+      let ok = true;
+      for (let step = 0; step < LESSONS.length && ok; step++) {
+        const opts = LESSONS.slice().sort();
+        const c = await choose(opts, { title: 'TEACH ' + ['FIRST', 'NEXT', 'THEN', 'LAST'][step] });
+        if (opts[c] === LESSONS[step]) { Sound.sfx('learn'); await say(['Ammon began at the creation of the world, and the creation of Adam.', 'He told him all things concerning the fall of man.', 'He rehearsed the records and holy scriptures, from the time that Lehi left Jerusalem.', 'And he expounded the plan of redemption, and the coming of Christ.'][step]); }
+        else { ok = false; Sound.sfx('wrong'); await say('The king looks puzzled. Start again at the beginning, as Ammon did.'); }
+      }
+      if (ok) break;
+    }
+    cinema(true); Sound.play('glory');
+    await say('King Lamoni believed all his words, and began to cry unto the Lord:');
+    await showCard(['“O LORD, HAVE MERCY;', 'ACCORDING TO THY', 'ABUNDANT MERCY WHICH', 'THOU HAST HAD UPON', 'THE PEOPLE OF NEPHI,', 'HAVE UPON ME, AND', 'MY PEOPLE.”', '', { t: 'ALMA 18:41', dim: 1 }], { light: true, min: 110 });
+    setMode(fieldMode()); await fadeIn();
+    king.lying = true;
+    await say('And when he had said this, he fell unto the earth, as if he were dead. But the light of the Lord was in him, and in three days he arose.');
+    await fadeOut(false, 8); cinema(false); G.bars = 0;
+    await completeChapter('ammon');
+  };
+  const cfg = {
+    start: [T(10), T(15)], startDir: 'up', npcs: [king, ...servants], lighting: 'day', playerSpr: SPR.ammon,
+    target: () => talked ? null : { x: king.x, y: king.y + 12 },
+    interacts: [{ x: king.x, y: king.y + 12, r: 18, when: () => !talked, fn: teach }],
+    hud() { frame(0, 0, 160, 13); text('SPEAK WITH THE KING', 5, 3, 3); },
+  };
+  Field.setup(HOUSE, cfg);
+  setMode(fieldMode()); Sound.play('house');
+  await fadeIn();
+  await say('The king sat silent before Ammon for an hour, for he knew not what to say. Go and speak with him.');
+}
+
+/* ================= MORMON, keeper of the records (framing) ================= */
+const STORY_ORDER = ['plates', 'dream', 'ship', 'abinadi', 'alma', 'ammonihah', 'ammon', 'moroni', 'striplings', 'servant', 'judge', 'samuel', 'sign', 'gathering', 'storm', 'bountiful', 'jared', 'moroniAlone'];
+const MORMON_NOTES = {
+  plates: ['We had obtained the records which the Lord had commanded us... they were desirable; yea, even of great worth unto us.', '1 NEPHI 5:21'],
+  dream: ['Whoso would hearken unto the word of God, and would hold fast unto it, they would never perish.', '1 NEPHI 15:24'],
+  ship: ['The tender mercies of the Lord are over all those whom he hath chosen, because of their faith.', '1 NEPHI 1:20'],
+  abinadi: ['Alma did write all the words which Abinadi had spoken.', 'MOSIAH 17:4'],
+  alma: ['The Lord seeth fit to chasten his people; yea, he trieth their patience and their faith.', 'MOSIAH 23:21'],
+  ammonihah: ['Whosoever shall put their trust in God shall be supported in their trials, and their troubles, and their afflictions.', 'ALMA 36:3'],
+  ammon: ['I know that I am nothing... but I will boast of my God, for in his strength I can do all things.', 'ALMA 26:12'],
+  moroni: ['Thus we see how merciful and just are all the dealings of the Lord.', 'ALMA 50:19'],
+  striplings: ['They did obey and observe to perform every word of command with exactness.', 'ALMA 57:21'],
+  servant: ['Whosoever will may lay hold upon the word of God, which is quick and powerful.', 'HELAMAN 3:29'],
+  judge: ['And thus we can behold how false, and also the unsteadiness of the hearts of the children of men.', 'HELAMAN 12:1'],
+  samuel: ['Blessed are they who will repent and hearken unto the voice of the Lord their God.', 'HELAMAN 12:23'],
+  sign: ['Behold, I am a disciple of Jesus Christ, the Son of God.', '3 NEPHI 5:13'],
+  gathering: ['Their hearts were swollen with joy... because of the great goodness of God in delivering them.', '3 NEPHI 4:33'],
+  storm: ['And it was the more righteous part of the people who were saved.', '3 NEPHI 10:12'],
+  bountiful: ['No tongue can speak, neither can there be written by any man... so great and marvelous things.', '3 NEPHI 17:17'],
+  jared: ['They did sing praises unto the Lord... and they did thank and praise the Lord all the day long.', 'ETHER 6:9'],
+  moroniAlone: ['Lay hold upon the gospel of Christ.', 'MORMON 7:8'],
+};
+async function mormonNote(id) {
+  const n = MORMON_NOTES[id]; if (!n) return;
+  await showCard([{ t: 'MORMON’S RECORD', dim: 1 }, '', ...wrap(n[0].toUpperCase(), 21), '', { t: n[1], dim: 1 }], { min: 60 });
+}
+async function mormonIntro() {
+  UI.notebookAllowed = false;
+  const HOUSE = buildHouseInterior();
+  const stacks = [[T(3), T(10)], [T(5), T(10)], [T(15), T(10)], [T(17), T(10)], [T(3), T(15)], [T(16), T(15)]];
+  const cfg = {
+    start: [T(10), T(9) + 4], startDir: 'up', npcs: [], lighting: 'night', playerSpr: SPR.mormon,
+    drawUnder(cx, cy) { litDraw = 1; for (const [x, y] of stacks) for (let i = 0; i < 4; i++) drawPlate(x - cx, y - cy - i * 3); for (let i = 0; i < 3; i++) drawPlate(T(9) - cx + i * 6, T(6) - cy); litDraw = 0; },
+    hud() { frame(0, 0, 160, 13); text('THE RECORDS', 5, 3, 3); },
+  };
+  Field.setup(HOUSE, cfg);
+  setMode(fieldMode()); Sound.play('night'); cinema(true);
+  await fadeIn();
+  await sayAll([
+    'About four hundred years after Christ came to the Nephites, the prophet Mormon sat among the sacred records of his people.',
+    'A thousand years of plates, kept by prophet after prophet, were in his care.',
+    'He could not write a hundredth part of their history. So he chose which stories to engrave upon plates of gold.',
+  ]);
+  await showCard(['“I DO THIS FOR A', 'WISE PURPOSE; FOR', 'THUS IT WHISPERETH', 'ME, ACCORDING TO THE', 'WORKINGS OF THE', 'SPIRIT OF THE LORD', 'WHICH IS IN ME.”', '', { t: 'WORDS OF MORMON 1:7', dim: 1 }], { light: true, min: 90 });
+  cinema(false); G.bars = 0;
+  PROG.introSeen = true; saveProg();
+}
+async function startStory() {
+  PROG.story = true; saveProg();
+  await mormonIntro();
+  const id = STORY_ORDER.find(i => !PROG.done[i]) || STORY_ORDER[0];
+  await storyStart(CHAPTERS.find(c => c.id === id));
+}
+async function storyStart(c) {
+  await showCard([{ t: 'MORMON OPENS THE RECORD', dim: 1 }, '', { t: c.title, big: c.title.length <= 11 ? 1 : 0 }, '', { t: c.ref, dim: 1 }], { min: 40 });
+  const save = loadSave();
+  if (save && chapterOfScene(save.scene) === c.id && save.scene > c.from) { await continueGame(save); return; }
+  await c.start();
+}
+
+/* ================= SELF-CHECK: catches registry mistakes before players do ================= */
+function selfCheck() {
+  const out = [], ids = new Set(CHAPTERS.map(c => c.id));
+  for (const c of CHAPTERS) {
+    if (c.portal || c.locked) continue;
+    if (typeof c.start !== 'function') out.push('chapter ' + c.id + ': no start()');
+    if (!c.bonus && chapterOfScene(c.from) !== c.id) out.push('chapter ' + c.id + ': scene ' + c.from + ' maps to ' + chapterOfScene(c.from));
+    if (!c.bonus && !STORY_ORDER.includes(c.id)) out.push('chapter ' + c.id + ': missing from STORY_ORDER');
+    if (!c.bonus && !MORMON_NOTES[c.id]) out.push('chapter ' + c.id + ': no MORMON_NOTES entry');
+    if (!c.bonus && fragsOf(c.id).length !== 2) out.push('chapter ' + c.id + ': ' + fragsOf(c.id).length + ' plate fragments (want 2)');
+  }
+  for (const id of STORY_ORDER) if (!ids.has(id)) out.push('STORY_ORDER: unknown chapter ' + id);
+  for (const k in FRAGS) if (!ids.has(FRAGS[k].ch)) out.push('fragment ' + k + ': unknown chapter ' + FRAGS[k].ch);
+  for (const k in SPR) if (!SPR[k] || !SPR[k].down) out.push('sprite ' + k + ' is broken');
+  if (out.length) console.warn('SELF-CHECK found problems:\n' + out.join('\n'));
+  return out;
+}
+
+/* ================= CHAPTER: LEHI'S DREAM (1 Nephi 8) ================= */
+const ROD = [[16, 46], [16, 38], [8, 38], [8, 28], [22, 28], [22, 18], [12, 18], [12, 9], [16, 9], [16, 7]].map(([x, y]) => [T(x) + 4, T(y) + 4]);
+function rodDist(px, py) {
+  let best = 1e9, seg = 0;
+  for (let i = 0; i < ROD.length - 1; i++) {
+    const [ax, ay] = ROD[i], [bx, by] = ROD[i + 1], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)), d = Math.hypot(px - ax - u * dx, py - ay - u * dy);
+    if (d < best) { best = d; seg = i; }
+  }
+  return { d: best, seg };
+}
+function buildDream() {
+  const m = gridOf(32, 48, 'm');
+  const { set, fill } = mapTools(m);
+  fill(0, 0, 2, 48, '~'); fill(30, 0, 2, 48, 'X'); fill(0, 47, 32, 1, 'X');
+  for (let i = 0; i < ROD.length - 1; i++) { const [ax, ay] = ROD[i], [bx, by] = ROD[i + 1]; const x0 = Math.min(ax, bx) >> 3, x1 = Math.max(ax, bx) >> 3, y0 = Math.min(ay, by) >> 3, y1 = Math.max(ay, by) >> 3; fill(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 'p'); }
+  fill(11, 2, 11, 6, ',');
+  return new TileMap(m.map(r => r.join('')));
+}
+async function startDream() {
+  const prev = loadSave() || {};
+  State.chapter = 'dream';
+  writeSave({ chapter: 'dream', scene: 141, helpSeen: !!prev.helpSeen });
+  Sound.play(null);
+  await showCard(['“BEHOLD, I HAVE', 'DREAMED A DREAM; OR,', 'IN OTHER WORDS, I', 'HAVE SEEN A VISION.”', '', { t: '1 NEPHI 8:2', dim: 1 }], { min: 70 });
+  await dreamRod();
+}
+async function dreamRod() {
+  State.chapter = 'dream'; State.scene = 141; UI.notebookAllowed = false;
+  writeSave({ chapter: 'dream', scene: 141 });
+  await sceneBanner(1, 'THE IRON ROD');
+  const MAP = buildDream();
+  const TREE = { x: T(16) + 4, y: T(5) };
+  const mists = [{ x: T(12), y: T(40), vx: 0.25 }, { x: T(14), y: T(30), vx: -0.3 }, { x: T(18), y: T(22), vx: 0.28 }, { x: T(14), y: T(13), vx: -0.22 }];
+  let cpSeg = 0, lost = 0, phase = 'walk', inMist = false, taunt = 0;
+  const fam = [
+    { e: ent({ x: T(4) + 4, y: T(6), dir: 'right', kind: 'npc', spr: SPR.sariah, solid: true }), who: 'SARIAH', come: true },
+    { e: ent({ x: T(5) + 4, y: T(9), dir: 'right', kind: 'npc', spr: SPR.sam, solid: true }), who: 'SAM', come: true },
+    { e: ent({ x: T(7) + 4, y: T(4), dir: 'right', kind: 'npc', spr: SPR.nephiY, solid: true }), who: 'NEPHI', come: true },
+    { e: ent({ x: T(5) + 4, y: T(13), dir: 'right', kind: 'npc', spr: SPR.laman, solid: true }), who: 'LAMAN', come: false },
+    { e: ent({ x: T(7) + 4, y: T(15), dir: 'right', kind: 'npc', spr: SPR.lemuel, solid: true }), who: 'LEMUEL', come: false },
+  ];
+  fam.forEach(f => { f.e.hidden = true; });
+  let called = 0;
+  const backTo = async (msg) => {
+    await say(msg); await fadeOut();
+    const [x, y] = ROD[cpSeg]; Field.P.x = x; Field.P.y = y + 4; lost = 0; Field.snapCam(); await fadeIn();
+  };
+  const partake = async () => {
+    phase = 'family'; G.dark = 0.1; Sound.play('glory');
+    await showCard(['THE FRUIT THEREOF', 'WAS DESIRABLE TO', 'MAKE ONE HAPPY... IT', 'WAS MOST SWEET, ABOVE', 'ALL THAT I EVER', 'BEFORE TASTED.', '', { t: '1 NEPHI 8:10-11', dim: 1 }], { light: true, min: 100 });
+    setMode(fieldMode()); await fadeIn();
+    await say('Lehi was desirous that his family should partake also. He looked about, and saw them at the head of the river.');
+    fam.forEach(f => { f.e.hidden = false; f.e.talking = true; });
+  };
+  const cfg = {
+    start: [T(16) + 4, T(45)], startDir: 'up', npcs: fam.map(f => f.e), lighting: 'night', noLamps: true, playerSpr: SPR.lehi, frags: ['dr1', 'dr2'],
+    target: () => phase === 'walk' ? null : fam.find(f => f.e.talking) ? { x: fam.find(f => f.e.talking).e.x, y: fam.find(f => f.e.talking).e.y } : null,
+    interacts: fam.map(f => ({ x: f.e.x, y: f.e.y, r: 18, when: () => phase === 'family' && f.e.talking, fn: async () => {
+      f.e.talking = false; called++; face(f.e, Field.P);
+      if (f.come) { await say(['Sariah came and partook of the fruit.', 'Sam came and partook of the fruit.', 'Nephi came and partook of the fruit.'][fam.indexOf(f)]); walkTo(f.e, TREE.x - 12 + fam.indexOf(f) * 10, TREE.y + 18, 0.6); }
+      else await say('Lehi called to ' + (f.who === 'LAMAN' ? 'Laman' : 'Lemuel') + ', but he would not come and partake of the fruit.');
+      if (called >= 5) {
+        cinema(true);
+        await say('Lehi feared for Laman and Lemuel, and pleaded with them with all the feeling of a tender parent to hearken to his words.');
+        await fadeOut(false, 8); cinema(false); G.bars = 0; G.dark = 0;
+        await completeChapter('dream');
+      }
+    } })),
+    tick() {
+      const P = Field.P;
+      for (const m of mists) { m.x += m.vx; if (m.x < T(6) || m.x > T(24)) m.vx *= -1; }
+      if (phase !== 'walk') { Field.extraLights = [{ x: TREE.x, y: TREE.y, r: 60 }]; return; }
+      inMist = mists.some(m => Math.abs(P.x - m.x) < 46 && Math.abs(P.y - m.y) < 30);
+      G.dark = Math.max(0, Math.min(1, G.dark + ((inMist ? 0.97 : 0.55) - G.dark) * 0.05));
+      const r = rodDist(P.x, P.y), holding = r.d < 11;
+      if (holding && r.seg > cpSeg) cpSeg = r.seg;
+      Field.extraLights = [{ x: P.x, y: P.y - 6, r: holding ? 20 : 12 }, { x: TREE.x, y: TREE.y, r: 46 }];
+      if (inMist && !holding) { lost++; if (lost > 120) { Field.runScript(() => backTo('You let go of the rod, and wandered off and were lost in the mist.')); return; } } else lost = Math.max(0, lost - 2);
+      if (P.x > T(25)) { Field.runScript(() => backTo('The mocking from the great and spacious building drew you off the path. Hold fast to the rod!')); return; }
+      if (++taunt % 180 === 0) Sound.sfx('alert');
+      if (Math.hypot(P.x - TREE.x, P.y - TREE.y) < 22) Field.runScript(partake);
+    },
+    drawUnder(cx, cy) {
+      const P = Field.P, near = rodDist(P.x, P.y).d < 11, c = addColor(near ? '#d8dce4' : '#8a8a96');
+      litDraw = near ? 2 : 0;
+      for (let i = 0; i < ROD.length - 1; i++) { const [ax, ay] = ROD[i], [bx, by] = ROD[i + 1], n = Math.hypot(bx - ax, by - ay) | 0; for (let k = 0; k <= n; k++) { const x = Math.round(ax + (bx - ax) * k / n - cx) + 5, y = Math.round(ay + (by - ay) * k / n - cy) - 6; pset(x, y, c); if (k % 16 === 0) rect(x, y, 1, 5, c); } }
+      litDraw = 2;
+      const tx = Math.round(TREE.x - cx), ty = Math.round(TREE.y - cy);
+      rect(tx - 2, ty - 4, 5, 14, addColor('#8a5a34')); rect(tx - 14, ty - 24, 29, 20, addColor('#5fa040')); rect(tx - 10, ty - 28, 21, 5, addColor('#5fa040'));
+      for (let i = 0; i < 9; i++) { const fx = tx - 11 + (i * 7) % 23, fy = ty - 24 + (i * 5) % 16; rect(fx, fy, 2, 2, addColor('#fffdf0')); }
+      litDraw = 0;
+    },
+    drawOver(cx, cy) {
+      litDraw = 2;
+      const bx = Math.round(T(27) - cx), by = Math.round(T(10) - cy) - Math.round(2 * Math.sin(G.frame * 0.03));
+      rect(bx - 4, by - 30, 30, 36, addColor('#b8a4c8')); rect(bx - 6, by - 34, 34, 5, addColor('#8a7aa0'));
+      for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { rect(bx + x * 7, by - 26 + y * 8, 3, 4, addColor('#ffd968')); if (((G.frame >> 4) + x + y) % 5 === 0) pset(bx + x * 7 + 1, by - 25 + y * 8, addColor('#2b1d1a')); }
+      if (phase === 'walk' && (G.frame % 180) < 70) { frame(bx - 16, by + 8, 42, 11); text('HA HA!', bx - 12, by + 10, 3); }
+      litDraw = 0;
+    },
+    hud() { frame(0, 0, 160, 13); text(phase === 'walk' ? (inMist ? 'HOLD FAST TO THE ROD' : 'FOLLOW THE ROD') : 'CALL YOUR FAMILY ' + called + '/5', 5, 3, 3); },
+  };
+  Field.setup(MAP, cfg);
+  G.dark = 0.55;
+  setMode(fieldMode()); Sound.play('night');
+  await fadeIn();
+  await sayAll(['Lehi found himself in a dark and dreary waste. Before him was a rod of iron and a strait and narrow path, leading to a tree.', 'Mists of darkness drift across the path. Stay close to the rod (it shines when you hold it), or you will be lost in the mist.']);
+}
+
+/* ================= CHAPTER: ABINADI (Mosiah 11-18) ================= */
+async function startAbinadi() {
+  const prev = loadSave() || {};
+  State.chapter = 'abinadi';
+  writeSave({ chapter: 'abinadi', scene: 151, helpSeen: !!prev.helpSeen });
+  Sound.play('house');
+  await showCard(['KING NOAH AND HIS', 'PRIESTS LED THE', 'PEOPLE INTO WICKEDNESS.', '', 'THE PROPHET ABINADI', 'WAS SENT TO CALL', 'THEM TO REPENTANCE,', 'AND WAS TAKEN BOUND', 'BEFORE THE KING.', '', { t: 'MOSIAH 11-12', dim: 1 }], { min: 60 });
+  await abinadiCourt();
+}
+async function abinadiCourt() {
+  State.chapter = 'abinadi'; State.scene = 151; UI.notebookAllowed = false;
+  writeSave({ chapter: 'abinadi', scene: 151 });
+  await sceneBanner(1, 'THE COURT');
+  const HOUSE = buildHouseInterior();
+  const noah = ent({ x: T(10), y: T(4) + 4, dir: 'down', kind: 'npc', spr: SPR.noah, solid: true });
+  const priests = [[4, 5], [16, 5], [3, 9], [17, 9]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: i % 2 ? 'left' : 'right', kind: 'npc', spr: i === 2 ? SPR.almaY : SPR.priest, solid: true }));
+  const spots = [[5, 13], [15, 13], [7, 10], [13, 10]].map(([x, y]) => ({ x: T(x) + 4, y: T(y) + 4, p: 0, done: false }));
+  const lines = ['Abinadi rehearsed the commandments of God to the priests, for they had not taught them to the people.', 'He taught that salvation does not come by the law of Moses alone.', 'He spoke the words of Isaiah: the Messiah would be brought as a lamb to the slaughter, and bear our griefs.'];
+  const NEED = 220, DOOR = { x: T(10), y: T(17) };
+  let guards = [], spawnT = 120, shineCd = 0, glow = 0, doneN = 0, phase = 'speak';
+  const removeG = gd => { guards = guards.filter(x => x !== gd); const j = Field.npcs.indexOf(gd); if (j >= 0) Field.npcs.splice(j, 1); };
+  const cfg = {
+    start: [T(10), T(15)], startDir: 'up', npcs: [noah, ...priests], lighting: 'day', playerSpr: SPR.abinadi,
+    target() { if (phase !== 'speak') return null; const P = Field.P, l = spots.filter(s => !s.done); l.sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)); return l[0]; },
+    tick() {
+      if (phase !== 'speak') return;
+      const P = Field.P;
+      if (shineCd > 0) shineCd--; if (glow > 0) glow--;
+      if (--spawnT <= 0) { const gd = ent({ x: DOOR.x, y: DOOR.y, dir: 'up', kind: 'npc', spr: SPR.guard, solid: false, st: 'go' }); guards.push(gd); Field.npcs.push(gd); spawnT = 170 + Math.random() * 90 - doneN * 25; }
+      if (Input.pressed.a && shineCd <= 0) { shineCd = 140; glow = 30; G.flash = 3; Sound.sfx('jingle'); for (const gd of guards) if (Math.hypot(gd.x - P.x, gd.y - P.y) < 44) { gd.st = 'back'; gd.seen = true; } }
+      for (const gd of guards.slice()) {
+        const tx = gd.st === 'go' ? P.x : DOOR.x, ty = gd.st === 'go' ? P.y : DOOR.y + 8, dx = tx - gd.x, dy = ty - gd.y, d = Math.hypot(dx, dy) || 1, sp = gd.st === 'go' ? 0.42 : 1.0;
+        gd.x += dx / d * sp; gd.y += dy / d * sp; gd.moving = true; gd.anim += sp; gd.frame = 1 + ((gd.anim / 8 | 0) % 2); gd.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+        if (gd.st === 'back' && d < 4) removeG(gd);
+        if (gd.st === 'go' && d < 10) { gd.st = 'back'; G.shake = 6; Sound.sfx('wrong'); const s = spots.find(s => !s.done && Math.hypot(s.x - P.x, s.y - P.y) < 10); if (s) s.p = 0; Field.runScript(async () => { await say('Guards seize you and drag you from your place. Your words are interrupted!'); }); }
+      }
+      for (const s of spots) if (!s.done && Math.hypot(s.x - P.x, s.y - P.y) < 9 && !P.moving) {
+        s.p++;
+        if (s.p >= NEED) { s.done = true; doneN++; Sound.sfx('learn');
+          if (doneN < 4) Field.runScript(async () => { await say(lines[doneN - 1]); });
+          else { phase = 'end'; guards.slice().forEach(removeG); Field.runScript(finish); } }
+      }
+    },
+    drawUnder(cx, cy) {
+      for (const s of spots) { const x = Math.round(s.x - cx), y = Math.round(s.y - cy); const c = addColor(s.done ? '#86b84a' : '#ffd968'); rect(x - 6, y - 1, 12, 3, c); if (!s.done && s.p > 0) { rect(x - 7, y - 26, 14, 3, addColor('#2b1d1a')); rect(x - 6, y - 25, Math.round(12 * s.p / NEED), 1, addColor('#5fa8d8')); } }
+    },
+    drawOver(cx, cy) { if (glow > 0) { litDraw = 2; const x = Math.round(Field.P.x - cx), y = Math.round(Field.P.y - cy) - 10, c = addColor('#fffdf0'); for (let a = 0; a < 6.28; a += 0.3) pset(x + Math.round(Math.cos(a) * (40 - glow)), y + Math.round(Math.sin(a) * (40 - glow) * 0.7), c); litDraw = 0; } },
+    hud() { frame(0, 0, 160, 13); text('MESSAGE ' + doneN + '/4', 5, 3, 3); text(shineCd <= 0 ? 'A: SHINE' : 'WAIT...', 104, 3, shineCd <= 0 ? 3 : 2); },
+  };
+  const finish = async () => {
+    cinema(true);
+    await showCard(['“TEACH THEM THAT', 'REDEMPTION COMETH', 'THROUGH CHRIST THE', 'LORD, WHO IS THE VERY', 'ETERNAL FATHER.”', '', { t: 'MOSIAH 16:15', dim: 1 }], { light: true, min: 100 });
+    setMode(fieldMode()); await fadeIn();
+    await sayAll(['One of the priests, a young man named Alma, believed the words of Abinadi, and pleaded with the king for him.', 'The king was angry, and cast Alma out, and sent his servants to slay him.']);
+    await fadeOut(false, 8);
+    await showCard(['ABINADI SEALED THE', 'TRUTH OF HIS WORDS', 'BY HIS DEATH.', '', { t: 'MOSIAH 17:20', dim: 1 }], { min: 100 });
+    cinema(false); G.bars = 0;
+    await abinadiFlee();
+  };
+  Field.setup(HOUSE, cfg);
+  setMode(fieldMode()); Sound.play('house');
+  await fadeIn();
+  await sayAll(['Stand still on a glowing mark to deliver part of your message. Finish all four.', 'Guards will rush in to seize you. Press A to let your face shine with the power of God, and they will fall back. (It needs time to recharge.)']);
+  Sound.play('climax');
+}
+async function abinadiFlee() {
+  State.scene = 152; UI.notebookAllowed = false;
+  writeSave({ chapter: 'abinadi', scene: 152 });
+  await sceneBanner(2, 'THE WATERS OF MORMON');
+  const START = [T(24), T(8)];
+  const npcs = [
+    makeScoffer(T(23), T(10), [[T(23), T(10), 40, 'down'], [T(23), T(21), 40, 'up']], { spr: SPR.guard, speed: 0.4 }),
+    makeScoffer(T(10), T(28) + 4, [[T(10), T(28) + 4, 50], [T(40), T(28) + 4, 50]], { spr: SPR.guard, speed: 0.38 }),
+    makeLookout(T(30), T(34), [['left', 120], ['down', 90], ['right', 100]], { spr: SPR.guard }),
+  ];
+  const cfg = {
+    start: START, startDir: 'down', npcs, lighting: 'night', playerSpr: SPR.almaY, frags: ['ab1', 'ab2'],
+    target: () => ({ x: T(42), y: T(39) }),
+    triggers: [{ x: T(39), y: T(36), w: T(6), h: T(6), fn: async () => {
+      cinema(true); Sound.play('glory');
+      await sayAll(['Alma hid himself many days, and wrote all the words which Abinadi had spoken.', 'Then he taught the people in secret, at a place called Mormon, by a fountain of pure water.']);
+      await showCard(['THE PLACE OF MORMON,', 'THE WATERS OF MORMON,', 'THE FOREST OF MORMON,', 'HOW BEAUTIFUL ARE', 'THEY TO THE EYES OF', 'THEM WHO THERE CAME', 'TO THE KNOWLEDGE OF', 'THEIR REDEEMER.', '', { t: 'MOSIAH 18:30', dim: 1 }], { min: 120 });
+      cinema(false); G.bars = 0;
+      await completeChapter('abinadi');
+    } }],
+    async onCaught() { await say('There he is! The priest who believed Abinadi!', 'SERVANT'); await fadeOut(); Field.P.x = START[0]; Field.P.y = START[1]; Field.resetNPCs(); Field.snapCam(); await fadeIn(); },
+    hud() { frame(0, 0, 160, 13); text('FLEE TO THE FOREST', 5, 3, 3); },
+  };
+  Field.setup(OUTSIDE, cfg);
+  setMode(fieldMode()); Sound.play('night');
+  await fadeIn();
+  await say('As young Alma, slip past the king’s servants and escape to the forest in the south-east.');
+}
+
+/* ================= CHAPTER: THE PRISON WALLS (Alma 14) ================= */
+function buildJail() {
+  const m = gridOf(24, 18, 'f');
+  const { fill } = mapTools(m);
+  fill(0, 0, 24, 2, 'h'); fill(0, 17, 24, 1, 'h'); fill(0, 0, 1, 18, 'h'); fill(23, 0, 1, 18, 'h');
+  fill(11, 2, 1, 15, 'b');
+  return new TileMap(m.map(r => r.join('')));
+}
+async function startAmmonihah() {
+  const prev = loadSave() || {};
+  State.chapter = 'ammonihah';
+  writeSave({ chapter: 'ammonihah', scene: 161, helpSeen: !!prev.helpSeen });
+  Sound.play('house');
+  await showCard(['ALMA AND AMULEK', 'PREACHED IN THE CITY', 'OF AMMONIHAH.', '', 'THE PEOPLE BOUND', 'THEM AND CAST THEM', 'INTO PRISON.', '', { t: 'ALMA 14', dim: 1 }], { min: 60 });
+  await prisonCell();
+}
+async function prisonCell() {
+  State.chapter = 'ammonihah'; State.scene = 161; UI.notebookAllowed = false;
+  writeSave({ chapter: 'ammonihah', scene: 161 });
+  await sceneBanner(1, 'THE PRISON');
+  const MAP = buildJail();
+  const amulek = ent({ x: T(4) + 4, y: T(12), dir: 'right', kind: 'npc', spr: SPR.amulek, solid: true });
+  const judges = [[15, 6], [17, 9], [15, 12]].map(([x, y]) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'left', kind: 'npc', spr: SPR.judge, solid: true }));
+  let phase = 'days', mash = 0, hearts = 0, maxH = 0, inv = 0, strike = null, nextStrike = 60, done = false;
+  const EXIT = { x: T(22), y: T(9) };
+  const runDays = async () => {
+    for (let day = 1; day <= 3; day++) {
+      await say('Day ' + day + '. The chief judge and the lawyers come to the prison to mock them.');
+      for (const j of judges) j.dir = 'left';
+      await say(['If ye have such great power, why do ye not deliver yourselves?', 'Will ye stand again and judge this people? Speak!', 'How shall we look when we are damned?'][day - 1], 'CHIEF JUDGE');
+      const c = await choose(['Answer them nothing', 'Answer them back'], { title: 'THEY WAIT FOR YOUR ANSWER' });
+      if (c === 1) await say('Alma and Amulek answered them nothing, as the Spirit had taught them. You choose to stay silent too.');
+      else await say('You answer them nothing.');
+    }
+    await say('Then Alma stood and prayed:');
+    await showCard(['“O LORD, GIVE US', 'STRENGTH ACCORDING TO', 'OUR FAITH WHICH IS', 'IN CHRIST, EVEN UNTO', 'DELIVERANCE.”', '', { t: 'ALMA 14:26', dim: 1 }], { light: true, min: 90 });
+    setMode(fieldMode()); await fadeIn();
+    await say('Press A again and again to break the cords that bind you!');
+    phase = 'cords'; mash = 0;
+  };
+  const collapse = async () => {
+    phase = 'collapse'; Sound.play(null);
+    G.shake = 60; Sound.sfx('thud'); lightning(6);
+    await say('They broke the cords with which they were bound! And the earth shook mightily, and the walls of the prison were rent in twain.');
+    for (let x = 11, y = 2; y < 17; y++) MAP.setTile(x, y, 'f');
+    for (const y of [8, 9, 10]) MAP.setTile(23, y, 'f');
+    judges.forEach(j => { j.lying = true; });
+    await say('The walls fell upon the judges who had mocked them. Now walk out through the broken wall, and watch for falling stones!');
+    maxH = hasAbility('steadfast') ? 4 : 3; hearts = maxH; phase = 'escape'; Sound.play('storm');
+  };
+  const cfg = {
+    start: [T(6), T(9)], startDir: 'right', npcs: [amulek, ...judges], lighting: 'day', playerSpr: SPR.almaP, frags: ['an1', 'an2'],
+    target: () => phase === 'escape' ? EXIT : null,
+    tick() {
+      const P = Field.P;
+      if (phase === 'cords') { if (Input.pressed.a) { mash += 9; Sound.sfx('move'); G.shake = 2; } mash = Math.max(0, mash - 0.35); if (mash >= 100) Field.runScript(collapse); return; }
+      if (phase !== 'escape') return;
+      followTrail([amulek], 14);
+      if (inv > 0) inv--;
+      if (!strike && --nextStrike <= 0) { const x = P.x + (Math.random() - 0.3) * 50, y = P.y + (Math.random() - 0.5) * 40; if (!MAP.solidAt(x, y)) strike = { x, y, t: 40 }; nextStrike = 40 + Math.random() * 30; }
+      if (strike && --strike.t <= 0) { G.shake = 8; Sound.sfx('thud'); if (Math.hypot(P.x - strike.x, P.y - strike.y) < 12 && inv <= 0) { hearts--; inv = 80; Sound.sfx('wrong'); if (hearts <= 0) { phase = 'retry'; Field.runScript(async () => { await say('Stones knock you down. Amulek helps you up. Try again!'); await fadeOut(); P.x = T(6); P.y = T(9); hearts = maxH; strike = null; Field.trail = []; Field.snapCam(); await fadeIn(); phase = 'escape'; }); } } strike = null; }
+      if (!done && P.x > T(22) + 2) { done = true; Field.runScript(async () => {
+        cinema(true); Sound.play('glory');
+        await sayAll(['The people came running together, and when they saw Alma and Amulek coming forth out of the prison, they fled in fear.', 'Alma and Amulek came out unhurt, for the Lord had given them power according to their faith in Christ.']);
+        await fadeOut(false, 8); cinema(false); G.bars = 0; await completeChapter('ammonihah');
+      }); }
+    },
+    drawUnder(cx, cy) {
+      if (phase === 'days' || phase === 'cords') { const P = Field.P, c = addColor('#a07a4a'); for (const e of [P, amulek]) { const x = Math.round(e.x - cx), y = Math.round(e.y - cy); rect(x - 6, y - 9, 12, 1, c); rect(x - 6, y - 6, 12, 1, c); } }
+      if (strike) { const x = Math.round(strike.x - cx), y = Math.round(strike.y - cy), r = 7 + (strike.t >> 3), c = addColor(strike.t % 8 < 4 ? '#ffd968' : '#c2453a'); for (let a = 0; a < 6.28; a += 0.4) pset(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.6), c); }
+    },
+    hud() {
+      frame(0, 0, 160, 13);
+      if (phase === 'cords') { text('BREAK THE CORDS!', 5, 3, 3); rect(104, 4, 50, 5, 3); rect(105, 5, Math.round(48 * mash / 100), 3, addColor('#c2453a')); }
+      else if (phase === 'escape' || phase === 'retry') { for (let i = 0; i < maxH; i++) drawHeart(5 + i * 9, 3, i < hearts); text('ESCAPE!', 110, 3, 3); }
+      else text('IN PRISON, MANY DAYS', 5, 3, 3);
+    },
+  };
+  Field.setup(MAP, cfg);
+  setMode(fieldMode()); Sound.play('night');
+  await fadeIn();
+  Field.runScript(runDays);
+}
+
+/* ================= CHAPTER: TITLE OF LIBERTY (Alma 46-50) ================= */
+const MORONI_OPTS = {
+  id: 'moroni', s0: 172, s1: 173, works: 7, leader: 'moroniC', name: 'MORONI', foe: 'warrior', banner3: 'FORTIFY', banner4: 'THE ATTACK',
+  intro: 'The Lamanites came against the city, and they were astonished, for Moroni had prepared it as never before.',
+  orders: ['Defend the gates! Press A beside a Lamanite to drive him back. The towers will help.', 'Hold until they withdraw.'],
+  lost: 'The Lamanites have broken into the stores! Moroni rallies the people. Try again.',
+  win1: ['The Lamanites could not break through, and their chief captains fell.', 'They fled back into the wilderness in great confusion.'],
+  win2: ['And the Nephites did thank the Lord their God, because of his matchless power in delivering them from the hands of their enemies.'],
+};
+async function startMoroni() {
+  const prev = loadSave() || {};
+  State.chapter = 'moroni';
+  writeSave({ chapter: 'moroni', scene: 171, helpSeen: !!prev.helpSeen });
+  Sound.play('house');
+  await showCard(['AMALICKIAH SOUGHT TO', 'DESTROY THE FREEDOM', 'OF THE NEPHITES.', '', 'CAPTAIN MORONI RENT', 'HIS COAT, AND WROTE', 'UPON IT:', '', { t: 'ALMA 46:12', dim: 1 }], { min: 50 });
+  await showCard(['“IN MEMORY OF OUR', 'GOD, OUR RELIGION,', 'AND FREEDOM, AND OUR', 'PEACE, OUR WIVES,', 'AND OUR CHILDREN.”', '', { t: 'ALMA 46:12', dim: 1 }], { light: true, min: 90 });
+  await moroniRally();
+}
+async function moroniRally() {
+  State.chapter = 'moroni'; State.scene = 171; UI.notebookAllowed = false;
+  writeSave({ chapter: 'moroni', scene: 171 });
+  await sceneBanner(1, 'THE RALLY');
+  const spots = [[6, 11], [15, 11], [6, 31], [16, 31], [47, 11], [56, 20], [47, 31], [57, 43]];
+  const folk = spots.map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'down', kind: 'npc', spr: [SPR.citizen, SPR.five, SPR.five2, SPR.elder, SPR.five3][i % 5], solid: false, talking: true, joined: false }));
+  const LIMIT = 5400;
+  let t = 0, done = false;
+  const joined = () => folk.filter(f => f.joined);
+  const cfg = {
+    start: [T(31) + 4, T(17)], startDir: 'down', npcs: folk, lighting: 'day', playerSpr: SPR.moroniC, frags: ['mo1', 'mo2'],
+    target() { const l = folk.filter(f => !f.joined); if (!l.length) return { x: T(31) + 4, y: T(16) }; const P = Field.P; l.sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)); return l[0]; },
+    tick() {
+      t++; const P = Field.P;
+      followTrail(joined(), 9);
+      for (const f of folk) if (!f.joined && Math.hypot(f.x - P.x, f.y - P.y) < 18) { f.joined = true; f.talking = false; Sound.sfx('learn'); }
+      if (!done && joined().length === folk.length && P.x > T(23) && P.x < T(40) && P.y < T(18)) { done = true; Field.runScript(async () => {
+        cinema(true); Sound.play('glory');
+        await sayAll(['The people came running together, with their armor girded about their loins, and covenanted to keep the commandments of God and defend their liberty.', 'Then Moroni prepared the cities as never before.']);
+        await fadeOut(); cinema(false); G.bars = 0;
+        await gatherFortify(MORONI_OPTS);
+      }); }
+      if (t >= LIMIT && !done) { t = 0; Field.runScript(async () => { await say('Amalickiah’s followers spread their lies faster than you. Try the rally again!'); await fadeOut(); folk.forEach(f => { f.joined = false; f.talking = true; f.x = f.home.x; f.y = f.home.y; }); P.x = T(31) + 4; P.y = T(17); Field.trail = []; Field.snapCam(); await fadeIn(); }); }
+    },
+    hud() { frame(0, 0, 160, 13); text('RALLIED ' + joined().length + '/8', 5, 3, 3); rect(88, 4, 66, 5, 3); rect(89, 5, Math.round(64 * Math.max(0, 1 - t / LIMIT)), 3, addColor('#c2453a')); },
+  };
+  Field.setup(CITY, cfg);
+  setMode(fieldMode()); Sound.play('map');
+  await fadeIn();
+  await sayAll(['Carry the Title of Liberty through the city! Run close to the people and they will join you.', 'Rally all eight, then bring them back to the temple plaza before time runs out.']);
+}
+
+/* ================= CHAPTER: MORONI ALONE (Mormon 8, Moroni 1, 10) — the finale ================= */
+async function startMoroniAlone() {
+  const prev = loadSave() || {};
+  State.chapter = 'moroniAlone';
+  writeSave({ chapter: 'moroniAlone', scene: 181, helpSeen: !!prev.helpSeen });
+  Sound.play(null);
+  await showCard(['MORMON GAVE THE', 'SACRED PLATES TO', 'HIS SON MORONI.', '', 'AFTER THE GREAT AND', 'TREMENDOUS BATTLE,', 'MORONI WAS LEFT', 'ALONE TO FINISH', 'THE RECORD.', '', { t: 'MORMON 6:6; 8:1-3', dim: 1 }], { min: 80 });
+  await moroniHill();
+}
+async function moroniHill() {
+  State.chapter = 'moroniAlone'; State.scene = 181; UI.notebookAllowed = false;
+  writeSave({ chapter: 'moroniAlone', scene: 181 });
+  await sceneBanner(1, 'THE LAST NEPHITE');
+  const MAP = buildMount();
+  const CPS = [[T(15) + 4, T(44)], [T(5), T(30)], [T(22), T(19)], [T(9), T(8)]];
+  let cp = 0, phase = 'climb';
+  const npcs = [
+    makeLookout(T(4) + 4, T(25), [['down', 150], ['up', 130]], { spr: SPR.hunter }),
+    makeScoffer(T(4), T(22) + 4, [[T(4), T(22) + 4, 60], [T(23), T(22) + 4, 60]], { spr: SPR.hunter, speed: 0.38 }),
+    makeLookout(T(16), T(11) + 4, [['left', 140], ['right', 140]], { spr: SPR.hunter }),
+    makeScoffer(T(8) + 4, T(3) + 4, [[T(8) + 4, T(3) + 4, 50], [T(23), T(3) + 4, 50]], { spr: SPR.hunter, speed: 0.36 }),
+  ];
+  const DIG = { x: T(17), y: T(1) + 4 };
+  const cfg = {
+    start: CPS[0], startDir: 'up', npcs, lighting: 'night', playerSpr: SPR.moroniL, frags: ['ma1', 'ma2'],
+    target: () => phase === 'climb' ? DIG : null,
+    interacts: [{ x: DIG.x, y: DIG.y + 4, r: 16, when: () => phase === 'climb', fn: async () => {
+      phase = 'end'; cinema(true); Sound.play(null);
+      await sayAll(['Moroni hid up the plates unto the Lord, that they might come forth in the Lord’s own due time.', 'Then he wrote his last words, to all who would one day read the record.']);
+      Sound.play('glory');
+      await showCard(['ASK GOD, THE ETERNAL', 'FATHER, IN THE NAME', 'OF CHRIST, IF THESE', 'THINGS ARE NOT TRUE;', 'AND IF YE SHALL ASK', 'WITH A SINCERE HEART,', 'WITH REAL INTENT...', 'HE WILL MANIFEST THE', 'TRUTH OF IT UNTO YOU.', { t: 'MORONI 10:4', dim: 1 }], { light: true, min: 150 });
+      await showCard(['“YEA, COME UNTO', 'CHRIST, AND BE', 'PERFECTED IN HIM.”', '', { t: 'MORONI 10:32', dim: 1 }], { light: true, min: 120 });
+      await showCard([{ t: 'THE END', big: 1 }, '', 'BOOK OF MORMON', 'ADVENTURE', '', 'THANK YOU', 'FOR PLAYING'], { min: 150 });
+      cinema(false); G.bars = 0;
+      await completeChapter('moroniAlone');
+    } }],
+    tick() { const P = Field.P; for (let i = cp + 1; i < CPS.length; i++) if (P.y < CPS[i][1] + 6) { cp = i; Sound.sfx('learn'); } },
+    async onCaught() { await say('The Lamanites hunt every Nephite who will not deny the Christ. Moroni slips away into the dark.'); await fadeOut(); Field.P.x = CPS[cp][0]; Field.P.y = CPS[cp][1]; Field.resetNPCs(); Field.snapCam(); await fadeIn(); },
+    drawUnder(cx, cy) { if (phase === 'climb' && (G.frame >> 4) % 2) { const x = Math.round(DIG.x - cx), y = Math.round(DIG.y - cy); rect(x - 4, y, 9, 2, addColor('#ffd968')); } },
+    hud() { frame(0, 0, 160, 13); text('CLIMB AND HIDE THE PLATES', 5, 3, 3); },
+  };
+  Field.setup(MAP, cfg);
+  setMode(fieldMode()); Sound.play('night');
+  await fadeIn();
+  await sayAll(['Moroni wanders alone, carrying the plates. Those who hunt him are everywhere.', 'Climb the hill unseen and hide the record at the top.']);
 }
 
 /* ================= CHAPTER 6: THE GREAT STORM (3 Nephi 8-10) ================= */
@@ -3407,7 +4197,8 @@ async function stormVoice() {
 }
 
 /* ================= CHAPTER 5: THE GATHERING (3 Nephi 3-4) ================= */
-function buildGather() {
+const GATHER_THEMES = { red: { m: 'e', ',': 'k' }, jungle: { m: 'n', ',': 'j', T: 'U' } };
+function buildGather(theme) {
   const m = gridOf(60, 48, 'm');
   const { set, fill, bld } = mapTools(m);
   for (const [x, y, w, h] of [[2, 15, 10, 8], [48, 15, 10, 8], [2, 34, 12, 12], [46, 34, 12, 12], [17, 19, 8, 5], [36, 19, 8, 5], [18, 35, 10, 6], [33, 37, 10, 5]]) fill(x, y, w, h, ',');
@@ -3421,6 +4212,7 @@ function buildGather() {
   fill(5, 26, 2, 5, '.'); fill(53, 26, 2, 5, '.'); fill(5, 33, 2, 10, '.'); fill(53, 33, 2, 10, '.');
   bld(2, 18, 7, 5, 3, [1, 5]); bld(51, 18, 7, 5, 3, [1, 5]); bld(3, 37, 7, 5, 3, [1]); bld(50, 37, 7, 5, 3, [5]);
   for (const [x, y] of [[3, 28], [10, 28], [49, 28], [57, 28], [12, 36], [20, 37], [24, 46], [36, 46], [40, 39], [46, 46], [16, 46], [44, 35], [23, 34], [38, 34], [2, 14], [57, 14], [10, 15], [49, 15], [0, 4], [9, 6], [52, 5], [58, 9]]) set(x, y, 'T');
+  const th = GATHER_THEMES[theme]; if (th) for (const row of m) for (let x = 0; x < row.length; x++) if (th[row[x]]) row[x] = th[row[x]];
   return new TileMap(m.map(r => r.join('')));
 }
 const GATES = [{ gx: T(20), tiles: [19, 20], tx: T(17) + 4, ty: T(10) + 4 }, { gx: T(30) + 4, tiles: [29, 30, 31], tx: T(34) + 4, ty: T(10) + 4 }, { gx: T(41), tiles: [40, 41], tx: T(43) + 4, ty: T(10) + 4 }];
@@ -3561,14 +4353,22 @@ async function gatherVillages() {
     'Talk to a villager, then lead them home to the stronghold. Robber scouts are watching the land.',
   ]);
 }
-async function gatherFortify() {
+const GATHER_OPTS = {
+  id: 'gathering', s0: 53, s1: 54, works: 5, leader: 'gidgiddoni', name: 'GIDGIDDONI', foe: 'robber', banner3: 'FORTIFY', banner4: 'THE SIEGE',
+  intro: 'The armies of the robbers come down from the hills, wearing lambskins and headplates, to lay siege.',
+  orders: ['Guard the stores! Press A beside a robber to drive him back. The towers will help.', 'Hold until they give up the siege.'],
+  lost: 'The robbers have seized the stores! Gidgiddoni rallies the people. Try the siege again.',
+  win1: ['The robbers could find no food, for the Nephites had left the land desolate behind them.', 'Weak with hunger, they tried to march away by night.', 'But Gidgiddoni knew their plan. His armies cut off their retreat, and the robbers were taken.'],
+  win2: ['The people broke forth, all as one, in singing and praising their God.', 'They knew it was because of their repentance and humility that they had been delivered.'],
+};
+async function gatherFortify(o = GATHER_OPTS) {
   State.scene = 53; UI.notebookAllowed = false;
-  writeSave({ chapter: 'gathering', scene: 53 });
-  await sceneBanner(3, 'FORTIFY');
+  State.scene = o.s0; writeSave({ chapter: o.id, scene: o.s0 });
+  await sceneBanner(o.id === 'gathering' ? 3 : 2, o.banner3);
   const MAP = buildGather();
   const forts = { wall: [0, 0, 0], tower: [false, false, false] };
-  let works = 5;
-  const gid = ent({ x: T(30) + 4, y: T(10), dir: 'down', kind: 'npc', spr: SPR.gidgiddoni, solid: true });
+  let works = o.works;
+  const gid = ent({ x: T(30) + 4, y: T(10), dir: 'down', kind: 'npc', spr: SPR[o.leader], solid: true });
   const sites = [];
   GATES.forEach((g, i) => {
     sites.push({ kind: 'wall', i, x: g.gx, y: T(15), cost: 1 });
@@ -3596,9 +4396,9 @@ async function gatherFortify() {
       { x: gid.x, y: gid.y + 4, r: 16, fn: async () => {
         face(gid, Field.P);
         if (works > 0) { const c = await choose(['Begin the siege', 'Keep building'], { title: works + ' WORKS LEFT' }); if (c !== 0) return; }
-        else await say('The walls are ready. Now we wait, and trust in the Lord.', 'GIDGIDDONI');
-        State.forts = forts; writeSave({ scene: 54, forts });
-        await fadeOut(); await gatherSiege();
+        else await say('The walls are ready. Now we wait, and trust in the Lord.', o.name);
+        State.forts = forts; writeSave({ scene: o.s1, forts });
+        await fadeOut(); await gatherSiege(o);
       } },
     ],
     drawUnder(cx, cy) {
@@ -3616,17 +4416,17 @@ async function gatherFortify() {
   Sound.play('house');
   await fadeIn();
   await sayAll([
-    ['GIDGIDDONI', 'The robbers will come against our three gates. Use our 5 works well.'],
-    ['GIDGIDDONI', 'A wall holds a gate shut until they break it. A tower drives back any robber who comes near.'],
-    ['GIDGIDDONI', 'Walk to a glowing mark and press A to build. Come to me when you are ready.'],
+    [o.name, 'The enemy will come against our three gates. Use our ' + o.works + ' works well.'],
+    [o.name, 'A wall holds a gate shut until they break it. A tower drives back any attacker who comes near.'],
+    [o.name, 'Walk to a glowing mark and press A to build. Come to me when you are ready.'],
   ]);
 }
-async function gatherSiege() {
+async function gatherSiege(o = GATHER_OPTS) {
   State.scene = 54; UI.notebookAllowed = false;
   const forts = JSON.parse(JSON.stringify(State.forts || { wall: [100, 100, 0], tower: [false, false, true] }));
   const saved = JSON.parse(JSON.stringify(forts));
-  writeSave({ chapter: 'gathering', scene: 54, forts: saved });
-  await sceneBanner(4, 'THE SIEGE');
+  State.scene = o.s1; writeSave({ chapter: o.id, scene: o.s1, forts: saved });
+  await sceneBanner(o.id === 'gathering' ? 4 : 3, o.banner4);
   const MAP = buildGather();
   applyForts(MAP, forts);
   const DUR = 3000;
@@ -3639,7 +4439,7 @@ async function gatherSiege() {
     robbers.length = 0; shots.length = 0;
   };
   const spawn = () => {
-    const r = ent({ x: T(12 + Math.floor(Math.random() * 36)) + 4, y: T(27) + 4, dir: 'up', kind: 'npc', spr: SPR.robber, solid: false });
+    const r = ent({ x: T(12 + Math.floor(Math.random() * 36)) + 4, y: T(27) + 4, dir: 'up', kind: 'npc', spr: SPR[o.foe], solid: false });
     r.gate = Math.floor(Math.random() * 3); r.st = 'march';
     robbers.push(r); Field.npcs.push(r);
   };
@@ -3679,7 +4479,7 @@ async function gatherSiege() {
         if (step(r, g.gx, T(9), sp)) {
           remove(r); stores--; Sound.sfx('wrong'); G.shake = 8;
           if (stores <= 0) { retrying = true; Field.runScript(async () => {
-            await say('The robbers have seized the stores! Gidgiddoni rallies the people. Try the siege again.');
+            await say(o.lost);
             await fadeOut(); reset(); Field.P.x = T(30) + 4; Field.P.y = T(16); Field.snapCam(); await fadeIn(); retrying = false;
           }); return; }
         }
@@ -3691,19 +4491,15 @@ async function gatherSiege() {
   const victory = async () => {
     Sound.play(null); cinema(true);
     await panTo(T(30), T(26), 70);
-    await sayAll([
-      'The robbers could find no food, for the Nephites had left the land desolate behind them.',
-      'Weak with hunger, they tried to march away by night.',
-      'But Gidgiddoni knew their plan. His armies cut off their retreat, and the robbers were taken.',
-    ]);
+    await sayAll(o.win1);
     Sound.play('glory');
-    await sayAll(['The people broke forth, all as one, in singing and praising their God.', 'They knew it was because of their repentance and humility that they had been delivered.']);
+    await sayAll(o.win2);
     await fadeOut(false, 8);
     cinema(false); G.bars = 0; releaseCam();
-    await completeChapter('gathering');
+    await completeChapter(o.id);
   };
   const people = [[22, 9], [25, 10], [28, 9], [33, 10], [37, 9], [39, 10]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'down', kind: 'npc', spr: [SPR.citizen, SPR.five, SPR.five2, SPR.elder, SPR.five3, SPR.citizen][i], solid: true }));
-  const gid = ent({ x: T(30) + 4, y: T(10), dir: 'down', kind: 'npc', spr: SPR.gidgiddoni, solid: true });
+  const gid = ent({ x: T(30) + 4, y: T(10), dir: 'down', kind: 'npc', spr: SPR[o.leader], solid: true });
   const cfg = {
     start: [T(30) + 4, T(16)], startDir: 'down', npcs: [gid, ...people], lighting: 'day', playerSpr: SPR.believer,
     target: () => null, tick,
@@ -3727,10 +4523,10 @@ async function gatherSiege() {
   await fadeIn();
   cinema(true);
   await panTo(T(30), T(24), 60);
-  await say('The armies of the robbers come down from the hills, wearing lambskins and headplates, to lay siege.');
+  await say(o.intro);
   await panTo(T(30), T(12), 50);
   cinema(false); releaseCam();
-  await sayAll([['GIDGIDDONI', 'Guard the stores! Press A beside a robber to drive him back. The towers will help.'], ['GIDGIDDONI', 'Hold until they give up the siege.']]);
+  await sayAll(o.orders.map(l => [o.name, l]));
   reset(); phase = 'fight';
   Sound.play('climax');
 }
