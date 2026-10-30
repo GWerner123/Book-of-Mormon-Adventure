@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Servant of Helaman</title>
+<style>
+:root{
+  --page:#e8d6b0; --pad-face:#5a3a28; --pad-edge:#3a2418; --ab-face:#b4532c; --ab-edge:#7a3220;
+  --ink:#f7ebc8; --label:#e2c08a; --pill:#c9a063; --pill-ink:#2b1d1a; --frame:#7a5638;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --page:#1b1528; --pad-face:#4a3424; --pad-edge:#2b1d1a; --ab-face:#a8482a; --ab-edge:#6e2c1a;
+    --ink:#f7ebc8; --label:#c9a063; --pill:#3a2a33; --pill-ink:#e8d6b0; --frame:#3a2a52;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#1b1528; --pad-face:#4a3424; --pad-edge:#2b1d1a; --ab-face:#a8482a; --ab-edge:#6e2c1a;
+  --ink:#f7ebc8; --label:#c9a063; --pill:#3a2a33; --pill-ink:#e8d6b0; --frame:#3a2a52;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--page);overflow:hidden;
+  font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#app{position:relative;width:100%;height:100%;
+  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);touch-action:none}
+#stage{position:absolute;inset:0}
+#screen{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;background:#221a35;
+  box-shadow:0 0 0 4px var(--frame)}
+.touch{display:none;position:absolute}
+body.touchmode .touch{display:block}
+#dpad{width:132px;height:132px;touch-action:none}
+#dpad .arm{position:absolute;background:var(--pad-face);border-bottom:4px solid var(--pad-edge)}
+#dpad .h{left:0;top:44px;width:132px;height:44px;border-radius:6px}
+#dpad .v{left:44px;top:0;width:44px;height:132px;border-radius:6px}
+#dpad .dot{position:absolute;left:58px;top:58px;width:16px;height:16px;border-radius:50%;background:var(--pad-edge)}
+#dpad .tri{position:absolute;width:0;height:0;border:7px solid transparent}
+#dpad .tu{left:59px;top:10px;border-bottom-color:var(--label)}
+#dpad .td{left:59px;bottom:10px;border-top-color:var(--label)}
+#dpad .tl{left:10px;top:59px;border-right-color:var(--label)}
+#dpad .tr{right:10px;top:59px;border-left-color:var(--label)}
+#dpad .arm.on{filter:brightness(1.6)}
+#abwrap{width:150px;height:120px}
+.ab{position:absolute;width:62px;height:62px;border-radius:50%;background:var(--ab-face);
+  border:none;border-bottom:5px solid var(--ab-edge);color:var(--ink);font:700 22px/1 inherit;font-family:inherit;touch-action:none;padding:0}
+.ab.on{transform:translateY(3px);border-bottom-width:2px}
+#bA{right:0;top:0}
+#bB{left:0;top:46px}
+.pill{position:absolute;height:30px;padding:0 14px;border-radius:15px;border:none;background:var(--pill);color:var(--pill-ink);
+  font:600 13px/30px inherit;font-family:inherit;touch-action:none;letter-spacing:.02em}
+.pill.on{filter:brightness(1.3)}
+#bMute{display:block}
+.pill:focus-visible,.ab:focus-visible{outline:3px solid var(--label);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="screen" width="160" height="144" aria-label="Game screen"></canvas>
+    <div id="dpad" class="touch" aria-hidden="true">
+      <div class="arm h"></div><div class="arm v"></div><div class="dot"></div>
+      <div class="tri tu"></div><div class="tri td"></div><div class="tri tl"></div><div class="tri tr"></div>
+    </div>
+    <div id="abwrap" class="touch">
+      <button class="ab" id="bB" aria-label="B button">B</button>
+      <button class="ab" id="bA" aria-label="A button">A</button>
+    </div>
+    <button class="pill touch" id="bStart" aria-label="Start button">Start</button>
+    <button class="pill" id="bMute" aria-label="Sound on or off">Sound on</button>
+  </div>
+</div>
+<script>
+'use strict';
+/* =====================================================================
+   BOOK OF MORMON ADVENTURE — HOW TO ADD A CHAPTER (read before editing)
+   Every new chapter plugs into these shared systems. Keep them in use:
+   1. CHAPTERS registry: add { id, title, ref, place, x, y, start } so it
+      appears as a node on the world map (mapMode). Set locked:true for
+      chapters that are planned but not built yet.
+   2. Finish every chapter with:  await completeChapter('<id>')
+      (awards faith, clears the mid-chapter save, returns to the map).
+   3. Plate fragments: add 2 entries to FRAGS for the chapter (a short
+      scripture verse each, placed off the main path) and pass
+      frags: ['id1','id2'] in a Field.setup cfg. Field collects them.
+   4. Faith abilities (hasAbility): swift = faster running, quiet =
+      watchers notice slower, steadfast = more courage / lighter hits.
+      New mechanics should respect them where they apply.
+   5. A climax set piece at the end of each chapter (see signNight).
+   6. Music: give big moments their own SONGS entry (map, climax, glory).
+   7. Cinematics: cinema(true/false) letterbox, panTo(x, y, frames) and
+      releaseCam() for camera moves, lightning(), G.rain, G.shake.
+   8. Style: 16-bit palette via ramps/addColor; one signature colour and
+      a recognisable prop or feature per major figure (makeChar opts).
+   9. Keep dialogue short. Scripture quotes stay exact; narration short.
+   ===================================================================== */
+/* ================= SCREEN & PALETTE ================= */
+const W = 160, H = 144;
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+const imgData = ctx.createImageData(W, H);
+const px32 = new Uint32Array(imgData.data.buffer);
+const fb = new Uint8Array(W * H);      // colour index 0 (lightest) .. 3 (darkest)
+const litMask = new Uint8Array(W * H); // 1 = shown in full palette at night
+let litDraw = 0;                       // 2 = UI (full palette), 1 = lamplight
+
+function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+/* 16-bit style colour: the framebuffer holds indices into one shared palette (16+).
+   Values 0-3 are "shades" that resolve through the current ramp (light -> dark). */
+const PALRGB = [], PALIDX = {};
+function addColor(h) { if (h == null) return 255; h = h.toLowerCase(); if (PALIDX[h] == null) { PALRGB.push(hex(h)); PALIDX[h] = 15 + PALRGB.length; } return PALIDX[h]; }
+function ramp(a) { return a.map(addColor); }
+const RAMP = {
+  world: ramp(['#f7ebc8', '#d39a52', '#7d4a35', '#221a35']),   // cream, ochre, umber, night indigo
+  ui:    ramp(['#f7ebc8', '#e3c58e', '#a0703f', '#2b1d1a']),   // parchment and ink
+};
+let curRamp = RAMP.world;
+function col(c) { return c < 16 ? curRamp[c & 3] : c; }
+function pk(c) { return (255 << 24) | (Math.max(0, Math.min(255, c[2] | 0)) << 16) | (Math.max(0, Math.min(255, c[1] | 0)) << 8) | Math.max(0, Math.min(255, c[0] | 0)); }
+function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function nightOf(c) { return [c[0] * 0.27 + 10, c[1] * 0.31 + 12, c[2] * 0.42 + 40]; }
+function warmOf(c) { return [c[0] * 1.06 + 8, c[1] * 0.99 + 2, c[2] * 0.84]; }
+const dayT = new Uint32Array(256), nightT = new Uint32Array(256), lampT = new Uint32Array(256);
+const G = { lighting: 'day', dawn: 0, fade: 0, fadeWhite: false, shake: 0, frame: 0, cinema: false, bars: 0, rain: 0, flash: 0 };
+function setDawn(t) { G.dawn = Math.max(0, Math.min(1, t)); }
+function buildTables() {
+  const f = Math.min(1, G.fade / 3), to = G.fadeWhite ? [255, 248, 228] : [14, 10, 22];
+  const lamp = 0.72 + 0.28 * G.dawn;
+  for (let i = 0; i < PALRGB.length; i++) {
+    const d = PALRGB[i], n = nightOf(d), k = 16 + i;
+    let dc = d, nc = mix(n, d, G.dawn), lc = mix(n, warmOf(d), lamp);
+    if (f) { dc = mix(dc, to, f); nc = mix(nc, to, f); lc = mix(lc, to, f); }
+    dayT[k] = pk(dc); nightT[k] = pk(nc); lampT[k] = pk(lc);
+  }
+}
+
+function present() {
+  let sx = 0, sy = 0;
+  if (G.shake > 0) { sx = ((G.frame * 7) % 5) - 2; sy = ((G.frame * 3) % 3) - 1; G.shake--; }
+  buildTables();
+  const night = G.lighting === 'night';
+  for (let y = 0; y < H; y++) {
+    let yy = y - sy; if (yy < 0) yy = 0; else if (yy >= H) yy = H - 1;
+    for (let x = 0; x < W; x++) {
+      let xx = x - sx; if (xx < 0) xx = 0; else if (xx >= W) xx = W - 1;
+      const s = yy * W + xx;
+      const c = fb[s], lm = litMask[s];
+      px32[y * W + x] = !night || lm === 2 ? dayT[c] : lm === 1 ? lampT[c] : nightT[c];
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+function fillScreen(c) { fb.fill(col(c)); }
+
+/* ================= DRAW PRIMITIVES ================= */
+function pset(x, y, c) {
+  x |= 0; y |= 0;
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const i = y * W + x; fb[i] = col(c); if (litDraw) litMask[i] = litDraw;
+}
+function rect(x, y, w, h, c) {
+  x |= 0; y |= 0;
+  const x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(W, x + w), y1 = Math.min(H, y + h);
+  c = col(c);
+  for (let j = y0; j < y1; j++) for (let i = x0; i < x1; i++) { const k = j * W + i; fb[k] = c; if (litDraw) litMask[k] = litDraw; }
+}
+function frame(x, y, w, h) { // text box frame
+  const r0 = curRamp; curRamp = RAMP.ui;
+  rect(x, y, w, h, 0); rect(x, y, w, 1, 3); rect(x, y + h - 1, w, 1, 3); rect(x, y, 1, h, 3); rect(x + w - 1, y, 1, h, 3);
+  rect(x + 2, y + 2, w - 4, 1, 2); rect(x + 2, y + h - 3, w - 4, 1, 2); rect(x + 2, y + 2, 1, h - 4, 2); rect(x + w - 3, y + 2, 1, h - 4, 2);
+  curRamp = r0;
+}
+// bmp: Uint8Array of indices, 255 = transparent
+function blit(bmp, bw, bh, x, y, flip, recolor) {
+  x |= 0; y |= 0;
+  for (let j = 0; j < bh; j++) {
+    const yy = y + j; if (yy < 0 || yy >= H) continue;
+    for (let i = 0; i < bw; i++) {
+      const xx = x + i; if (xx < 0 || xx >= W) continue;
+      let c = bmp[j * bw + (flip ? bw - 1 - i : i)];
+      if (c === 255) continue;
+      if (recolor) c = recolor[c];
+      const k = yy * W + xx; fb[k] = col(c); if (litDraw) litMask[k] = litDraw;
+    }
+  }
+}
+
+/* ================= PIXEL FONT (5x7, upper case) ================= */
+const FONT_SRC = {
+  A: '01110 10001 10001 11111 10001 10001 10001', B: '11110 10001 10001 11110 10001 10001 11110',
+  C: '01110 10001 10000 10000 10000 10001 01110', D: '11110 10001 10001 10001 10001 10001 11110',
+  E: '11111 10000 10000 11110 10000 10000 11111', F: '11111 10000 10000 11110 10000 10000 10000',
+  G: '01110 10001 10000 10111 10001 10001 01111', H: '10001 10001 10001 11111 10001 10001 10001',
+  I: '01110 00100 00100 00100 00100 00100 01110', J: '00111 00010 00010 00010 00010 10010 01100',
+  K: '10001 10010 10100 11000 10100 10010 10001', L: '10000 10000 10000 10000 10000 10000 11111',
+  M: '10001 11011 10101 10101 10001 10001 10001', N: '10001 10001 11001 10101 10011 10001 10001',
+  O: '01110 10001 10001 10001 10001 10001 01110', P: '11110 10001 10001 11110 10000 10000 10000',
+  Q: '01110 10001 10001 10001 10101 10010 01101', R: '11110 10001 10001 11110 10100 10010 10001',
+  S: '01111 10000 10000 01110 00001 00001 11110', T: '11111 00100 00100 00100 00100 00100 00100',
+  U: '10001 10001 10001 10001 10001 10001 01110', V: '10001 10001 10001 10001 10001 01010 00100',
+  W: '10001 10001 10001 10101 10101 10101 01010', X: '10001 10001 01010 00100 01010 10001 10001',
+  Y: '10001 10001 10001 01010 00100 00100 00100', Z: '11111 00001 00010 00100 01000 10000 11111',
+  0: '01110 10001 10011 10101 11001 10001 01110', 1: '00100 01100 00100 00100 00100 00100 01110',
+  2: '01110 10001 00001 00010 00100 01000 11111', 3: '11111 00010 00100 00010 00001 10001 01110',
+  4: '00010 00110 01010 10010 11111 00010 00010', 5: '11111 10000 11110 00001 00001 10001 01110',
+  6: '00110 01000 10000 11110 10001 10001 01110', 7: '11111 00001 00010 00100 01000 01000 01000',
+  8: '01110 10001 10001 01110 10001 10001 01110', 9: '01110 10001 10001 01111 00001 00010 01100',
+  '.': '00000 00000 00000 00000 00000 01100 01100', ',': '00000 00000 00000 00000 01100 00100 01000',
+  '!': '00100 00100 00100 00100 00100 00000 00100', '?': '01110 10001 00001 00010 00100 00000 00100',
+  "'": '00100 00100 01000 00000 00000 00000 00000', '"': '01010 01010 10100 00000 00000 00000 00000',
+  ':': '00000 01100 01100 00000 01100 01100 00000', ';': '00000 01100 01100 00000 01100 00100 01000',
+  '-': '00000 00000 00000 01110 00000 00000 00000', '(': '00010 00100 01000 01000 01000 00100 00010',
+  ')': '01000 00100 00010 00010 00010 00100 01000', '/': '00001 00010 00010 00100 01000 01000 10000',
+  '>': '01000 01100 01110 01111 01110 01100 01000', '<': '00010 00110 01110 11110 01110 00110 00010',
+  '+': '00000 00100 00100 11111 00100 00100 00000', '*': '00000 00100 10101 01110 10101 00100 00000',
+  '&': '01100 10010 10100 01000 10101 10010 01101', '#': '01010 11111 01010 01010 11111 01010 00000',
+  '▼': '00000 00000 11111 01110 00100 00000 00000', '▲': '00000 00100 01110 11111 00000 00000 00000',
+};
+const FONT = {};
+for (const k in FONT_SRC) FONT[k] = FONT_SRC[k].split(' ').map(r => parseInt(r, 2));
+const CHARMAP = { '’': "'", '‘': "'", '“': '"', '”': '"', '—': '-', '–': '-', '…': '.' };
+function normText(s) { return s.replace(/[’‘“”—–…]/g, c => CHARMAP[c]); }
+function glyph(ch) { return FONT[ch] || FONT[ch.toUpperCase()]; }
+function text(str, x, y, c = 3, scale = 1) {
+  str = normText(str);
+  const r0 = curRamp; curRamp = RAMP.ui;
+  let cx = x;
+  for (const ch of str) {
+    const g = glyph(ch);
+    if (g && ch !== ' ') {
+      for (let r = 0; r < 7; r++) for (let b = 0; b < 5; b++) if (g[r] & (16 >> b)) {
+        if (scale === 1) pset(cx + b, y + r, c); else rect(cx + b * scale, y + r * scale, scale, scale, c);
+      }
+    }
+    cx += 6 * scale;
+  }
+  curRamp = r0;
+}
+// special icons that are not letters
+function icon(name, x, y, c = 3) {
+  const g = FONT[name === 'down' ? '▼' : name === 'up' ? '▲' : name]; if (!g) return;
+  const r0 = curRamp; curRamp = RAMP.ui;
+  for (let r = 0; r < 7; r++) for (let b = 0; b < 5; b++) if (g[r] & (16 >> b)) pset(x + b, y + r, c);
+  curRamp = r0;
+}
+function textCenter(str, y, c = 3, scale = 1) { text(str, ((W - normText(str).length * 6 * scale) / 2 + scale) | 0, y, c, scale); }
+function wrap(str, maxChars) {
+  const out = [];
+  for (const para of normText(str).split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      if (!line) line = word;
+      else if ((line + ' ' + word).length <= maxChars) line += ' ' + word;
+      else { out.push(line); line = word; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/* ================= INPUT ================= */
+const Input = {
+  held: { up: 0, down: 0, left: 0, right: 0, a: 0, b: 0, start: 0 },
+  prev: {}, pressed: {}, anyPressed: false, lastAxis: 'x',
+  touchHeld: { up: 0, down: 0, left: 0, right: 0, a: 0, b: 0, start: 0 }, keyHeld: { up: 0, down: 0, left: 0, right: 0, a: 0, b: 0, start: 0 },
+  update() {
+    this.anyPressed = false;
+    for (const k in this.held) {
+      this.held[k] = this.keyHeld[k] || this.touchHeld[k] ? 1 : 0;
+      this.pressed[k] = this.held[k] && !this.prev[k];
+      if (this.pressed[k]) this.anyPressed = true;
+      this.prev[k] = this.held[k];
+    }
+  },
+  clear() { for (const k in this.held) { this.keyHeld[k] = 0; this.touchHeld[k] = 0; } },
+};
+const KEYMAP = {
+  ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  KeyZ: 'a', Space: 'a', KeyX: 'b', Enter: 'start', NumpadEnter: 'start',
+};
+window.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = KEYMAP[e.code];
+  if (k) { Input.keyHeld[k] = 1; e.preventDefault(); if (k === 'left' || k === 'right') Input.lastAxis = 'x'; if (k === 'up' || k === 'down') Input.lastAxis = 'y'; }
+  if (e.code === 'KeyM' && !e.repeat) Sound.toggleMute();
+  Sound.unlock();
+});
+window.addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) { Input.keyHeld[k] = 0; e.preventDefault(); } });
+window.addEventListener('blur', () => Input.clear());
+
+/* touch controls */
+(function setupTouch() {
+  const body = document.body;
+  const goTouch = () => { if (!body.classList.contains('touchmode')) { body.classList.add('touchmode'); layout(); } };
+  if (window.matchMedia && matchMedia('(pointer: coarse)').matches) body.classList.add('touchmode');
+  window.addEventListener('touchstart', goTouch, { passive: true });
+  window.addEventListener('pointerdown', () => Sound.unlock(), { passive: true });
+  window.addEventListener('touchend', () => Sound.unlock(), { passive: true });
+
+  const dpad = document.getElementById('dpad');
+  const arms = dpad.querySelectorAll('.arm');
+  const dpadPointers = new Map();
+  function dpadFrom(e) {
+    const r = dpad.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const dead = r.width * 0.12;
+    const d = { up: 0, down: 0, left: 0, right: 0 };
+    if (Math.abs(dx) < dead && Math.abs(dy) < dead) return d;
+    const ang = Math.atan2(dy, dx); const oct = Math.round(ang / (Math.PI / 4)); // -4..4
+    if (oct === 0) d.right = 1; else if (oct === 4 || oct === -4) d.left = 1; else if (oct === 2) d.down = 1; else if (oct === -2) d.up = 1;
+    else if (oct === 1) { d.right = 1; d.down = 1; } else if (oct === 3) { d.left = 1; d.down = 1; }
+    else if (oct === -1) { d.right = 1; d.up = 1; } else if (oct === -3) { d.left = 1; d.up = 1; }
+    return d;
+  }
+  function applyDpad() {
+    const d = { up: 0, down: 0, left: 0, right: 0 };
+    for (const v of dpadPointers.values()) for (const k in d) d[k] |= v[k];
+    for (const k in d) Input.touchHeld[k] = d[k];
+    arms[0].classList.toggle('on', !!(d.left || d.right)); arms[1].classList.toggle('on', !!(d.up || d.down));
+  }
+  dpad.addEventListener('pointerdown', e => { e.preventDefault(); goTouch(); dpad.setPointerCapture(e.pointerId); dpadPointers.set(e.pointerId, dpadFrom(e)); applyDpad(); Sound.unlock(); });
+  dpad.addEventListener('pointermove', e => { if (dpadPointers.has(e.pointerId)) { dpadPointers.set(e.pointerId, dpadFrom(e)); applyDpad(); } });
+  const endD = e => { dpadPointers.delete(e.pointerId); applyDpad(); };
+  dpad.addEventListener('pointerup', endD); dpad.addEventListener('pointercancel', endD); dpad.addEventListener('lostpointercapture', endD);
+
+  function holdButton(el, key) {
+    const down = e => { e.preventDefault(); goTouch(); try { el.setPointerCapture(e.pointerId); } catch (_) {} Input.touchHeld[key] = 1; el.classList.add('on'); Sound.unlock(); };
+    const up = () => { Input.touchHeld[key] = 0; el.classList.remove('on'); };
+    el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  holdButton(document.getElementById('bA'), 'a');
+  holdButton(document.getElementById('bB'), 'b');
+  holdButton(document.getElementById('bStart'), 'start');
+  const mute = document.getElementById('bMute');
+  mute.addEventListener('click', e => { e.preventDefault(); Sound.unlock(); Sound.toggleMute(); mute.blur(); });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
+/* ================= LAYOUT (whole-number device-pixel scaling) ================= */
+function layout() {
+  const stage = document.getElementById('stage');
+  const r = stage.getBoundingClientRect();
+  const sw = r.width, sh = r.height, dpr = window.devicePixelRatio || 1;
+  const touch = document.body.classList.contains('touchmode');
+  const dpad = document.getElementById('dpad'), ab = document.getElementById('abwrap');
+  const start = document.getElementById('bStart'), mute = document.getElementById('bMute');
+  const fit = (aw, ah) => { const k = Math.max(1, Math.floor(Math.min(aw * dpr / W, ah * dpr / H))); return [W * k / dpr, H * k / dpr]; };
+  let cw, ch, cx, cy;
+  const place = (el, x, y) => { el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; };
+  if (touch && sw >= sh) { // landscape phone: controls in side columns, never over the screen
+    const side = Math.max(150, Math.min(210, sw * 0.22));
+    [cw, ch] = fit(sw - side * 2, sh - 16);
+    cx = (sw - cw) / 2; cy = (sh - ch) / 2;
+    const colL = cx - 4, colR = sw - (cx + cw + 4);
+    const sc = Math.min(1, colL / 150, colR / 150, sh / 300);
+    dpad.style.transform = ab.style.transform = `scale(${sc})`; dpad.style.transformOrigin = ab.style.transformOrigin = 'top left';
+    place(dpad, (colL - 132 * sc) / 2, sh * 0.58 - 66 * sc);
+    place(ab, cx + cw + 4 + (colR - 150 * sc) / 2, sh * 0.58 - 60 * sc);
+    place(start, (colL - 74) / 2, sh - 44);
+    place(mute, cx + cw + 4 + (colR - 104) / 2, 12);
+  } else if (touch) { // portrait phone: screen on top, controls below
+    const ctrlH = Math.min(240, sh * 0.42);
+    [cw, ch] = fit(sw - 12, sh - ctrlH - 16);
+    cx = (sw - cw) / 2; cy = Math.max(10, (sh - ctrlH - ch) / 2);
+    const top = cy + ch + 12, avail = sh - top;
+    const sc = Math.min(1.15, avail / 210, sw / 330);
+    dpad.style.transform = ab.style.transform = `scale(${sc})`; dpad.style.transformOrigin = ab.style.transformOrigin = 'top left';
+    place(dpad, sw * 0.07, top + (avail - 132 * sc) * 0.38);
+    place(ab, sw * 0.93 - 150 * sc, top + (avail - 120 * sc) * 0.38);
+    place(start, (sw - 74) / 2, sh - 46);
+    place(mute, (sw - 104) / 2, top + 4);
+  } else {
+    [cw, ch] = fit(sw - 24, sh - 60);
+    cx = (sw - cw) / 2; cy = Math.max(8, (sh - ch) / 2);
+    place(mute, sw - 116, 10);
+  }
+  Object.assign(canvas.style, { width: cw + 'px', height: ch + 'px', left: cx + 'px', top: cy + 'px' });
+}
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 120));
+
+/* ================= TIMERS, FADES, SCRIPT HELPERS ================= */
+const timers = [];
+function wait(frames) { return new Promise(res => timers.push({ t: frames, res })); }
+let fadeJob = null;
+function fadeTo(level, white = false, speed = 4) {
+  return new Promise(res => {
+    if (G.fade === level && G.fadeWhite === white) { res(); return; }
+    if (G.fade === 0) G.fadeWhite = white;
+    fadeJob = { level, white, speed, t: 0, res };
+  });
+}
+const fadeOut = (white = false, speed) => fadeTo(4, white, speed);
+const fadeIn = (speed) => fadeTo(0, G.fadeWhite, speed);
+function stepTimers() {
+  for (let i = timers.length - 1; i >= 0; i--) { if (--timers[i].t <= 0) { const r = timers[i].res; timers.splice(i, 1); r(); } }
+  if (fadeJob) {
+    if (++fadeJob.t >= fadeJob.speed) {
+      fadeJob.t = 0;
+      if (G.fade > 0 && G.fadeWhite !== fadeJob.white && fadeJob.level > 0) G.fade--; // switch colour through clear
+      else if (G.fade < fadeJob.level) { G.fadeWhite = fadeJob.white; G.fade++; }
+      else if (G.fade > fadeJob.level) G.fade--;
+      if (G.fade === fadeJob.level && (G.fade === 0 || G.fadeWhite === fadeJob.white)) { const r = fadeJob.res; fadeJob = null; r(); }
+    }
+  }
+}
+
+/* ================= DIALOGUE & CHOICES ================= */
+const UI = { dlg: null, choice: null, notebook: false, notebookAllowed: false, banner: null };
+const BOX_CHARS = 24, BOX_LINES = 3;
+function say(str, speaker) {
+  return new Promise(res => {
+    const lines = wrap(str, BOX_CHARS);
+    const pages = [];
+    for (let i = 0; i < lines.length; i += BOX_LINES) pages.push(lines.slice(i, i + BOX_LINES));
+    UI.dlg = { pages, page: 0, chars: 0, speaker: speaker ? normText(speaker) : null, res, t: 0 };
+  });
+}
+async function sayAll(list) { for (const item of list) { if (Array.isArray(item)) await say(item[1], item[0]); else await say(item); } }
+function dlgUpdate() {
+  const d = UI.dlg; d.t++;
+  const page = d.pages[d.page]; const total = page.join('').length;
+  if (!Input.held.b) UI.bFree = true;          // B must be released once inside talk, so running never skips text
+  const skim = UI.bFree && Input.held.b;
+  if (skim) { d.chars = total; d.skim = (d.skim || 0) + 1; if (d.skim >= 7) { d.skim = 0; if (d.page < d.pages.length - 1) { d.page++; d.t = 0; } else { UI.dlg = null; UI.closed = true; d.res(); } } return; }
+  if (d.chars < total) {
+    const sp = Input.held.a ? 3 : 1;
+    const before = d.chars | 0; d.chars = Math.min(total, d.chars + sp * 1.5);
+    if ((d.chars | 0) !== before && (d.chars | 0) % 2 === 0) Sound.sfx('blip');
+    if (Input.pressed.a && d.t > 6) d.chars = total;
+  } else if (Input.pressed.a || Input.pressed.b) {
+    Sound.sfx('next');
+    if (d.page < d.pages.length - 1) { d.page++; d.chars = 0; d.t = 0; }
+    else { UI.dlg = null; UI.closed = true; d.res(); }
+  }
+}
+function dlgDraw() {
+  const d = UI.dlg; const page = d.pages[d.page];
+  frame(0, 100, 160, 44);
+  if (d.speaker) { const w = d.speaker.length * 6 + 10; frame(4, 89, w, 14); rect(6, 99, w - 4, 4, 0); text(d.speaker, 9, 93, 3); }
+  let n = d.chars | 0;
+  page.forEach((ln, i) => { const s = ln.slice(0, Math.max(0, n)); n -= ln.length; text(s, 8, 107 + i * 11, 3); });
+  if ((d.chars | 0) >= page.join('').length && (G.frame >> 4) % 2) icon('down', 147, 134, 3);
+}
+function choose(options, opts = {}) {
+  return new Promise(res => {
+    const items = options.map(o => wrap(o, 22));
+    UI.choice = { items, idx: 0, res, title: opts.title ? wrap(opts.title, 24) : null, t: 0 };
+    Sound.sfx('next');
+  });
+}
+function choiceUpdate() {
+  const c = UI.choice; c.t++;
+  if (Input.pressed.up) { c.idx = (c.idx + c.items.length - 1) % c.items.length; Sound.sfx('move'); }
+  if (Input.pressed.down) { c.idx = (c.idx + 1) % c.items.length; Sound.sfx('move'); }
+  if (Input.pressed.start && UI.notebookAllowed) { UI.notebook = true; Sound.sfx('page'); return; }
+  if (Input.pressed.a && c.t > 8) { Sound.sfx('select'); UI.choice = null; UI.closed = true; c.res(c.idx); }
+}
+function choiceDraw() {
+  const c = UI.choice;
+  const lines = c.items.reduce((n, it) => n + it.length, 0);
+  const h = 10 + lines * 10 + (c.items.length - 1) * 3 + (c.title ? c.title.length * 10 + 3 : 0);
+  const y0 = 144 - h;
+  frame(0, y0, 160, h);
+  let y = y0 + 6;
+  if (c.title) { c.title.forEach(ln => { text(ln, 8, y, 2); y += 10; }); rect(8, y, 144, 1, 2); y += 3; }
+  c.items.forEach((it, i) => {
+    if (i === c.idx && (G.frame >> 3) % 4) icon('>', 5, y, 3);
+    it.forEach(ln => { text(ln, 14, y, 3); y += 10; });
+    y += 3;
+  });
+}
+
+/* ================= TILES (8x8) ================= */
+function bmpFrom(rows) { const a = new Uint8Array(rows.length * rows[0].length); rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) a[y * r.length + x] = r[x] === '.' ? 255 : +r[x]; }); return a; }
+const TILE_DEF = {
+  '.': { rows: ['11111111', '11121111', '11111112', '21111111', '11111111', '11111211', '12111111', '11111111'] }, // cobbles
+  'p': { rows: ['00000001', '01000001', '00000001', '11111111', '00010000', '00010100', '00010000', '11111111'] }, // plaza paving
+  ',': { rows: ['22222222', '21222212', '22222222', '22212222', '22222222', '12222221', '22222222', '22221222'] }, // grass
+  'R': { rows: ['22222222', '22232222', '22222222', '32222223', '22222222', '22223222', '22222222', '23222222'], solid: 1, opaque: 1 },
+  'r': { rows: ['22222222', '22232222', '22222222', '22222222', '00000000', '11111111', '22222222', '33333333'], solid: 1, opaque: 1 },
+  'W': { rows: ['22222222', '01110111', '01110111', '22222222', '11011101', '11011101', '22222222', '33333333'], solid: 1, opaque: 1 },
+  'J': { rows: ['00000000', '00100010', '00000000', '22222222', '00010000', '00010000', '00000000', '22222222'], solid: 1, opaque: 1 },
+  'd': { rows: ['22222222', '23333332', '23222232', '23233232', '23233232', '23233232', '23233232', '23233232'], solid: 1, opaque: 1 },
+  'D': { rows: ['23233232', '23233232', '23233232', '23203232', '23233232', '23233232', '23233232', '23333332'], solid: 1, opaque: 1 },
+  'w': { rows: ['22222222', '23333332', '23000032', '23030032', '23333332', '23000032', '23000032', '23333332'], solid: 1, opaque: 1 },
+  'L': { rows: ['11133111', '11300311', '11300311', '11133111', '11113111', '11113111', '11113111', '11233211'], solid: 1 },
+  'T': { rows: ['22333322', '23111132', '31101113', '31111013', '31011113', '23111132', '22333322', '22233222'], solid: 1, opaque: 1 },
+  'S': { rows: ['00330033', '00330033', '33333333', '21111112', '21000012', '21111112', '23333332', '11111111'], solid: 1, opaque: 1 },
+  'O': { rows: ['11222211', '12000021', '20333302', '20333302', '20333302', '12000021', '11222211', '11111111'], solid: 1 },
+  'B': { rows: ['33333333', '32222223', '32322323', '32233223', '32233223', '32322323', '32222223', '33333333'], solid: 1, opaque: 1 },
+  '=': { rows: ['00000000', '00000000', '11111111', '22222222', '00000000', '00000000', '11111111', '22222222'] },
+  'I': { rows: ['22222222', '21000012', '21000112', '21000112', '21000112', '21000112', '22222222', '33333333'], solid: 1, opaque: 1 },
+  'X': { rows: ['33333333', '32223222', '32223222', '33333333', '22322232', '22322232', '33333333', '22222222'], solid: 1, opaque: 1 },
+  'g': { rows: ['33333333', '32323232', '32323232', '32323232', '32323232', '32323232', '32323232', '33333333'], solid: 1, opaque: 1 },
+  ' ': { rows: ['33333333', '33333333', '33333333', '33333333', '33333333', '33333333', '33333333', '33333333'], solid: 1, opaque: 1 },
+  'f': { rows: ['11111111', '13111131', '11111111', '11131111', '11111111', '31111113', '11111111', '11113111'] }, // indoor floor
+  't': { rows: ['33333333', '30000003', '30111103', '30111103', '30000003', '33333333', '13111131', '13111131'], solid: 1 }, // table
+  'h': { rows: ['22222222', '00000000', '00100100', '00000000', '22222222', '33333333', '33333333', '33333333'], solid: 1, opaque: 1 }, // indoor wall
+  '~': { rows: ['33333333', '32233333', '33333223', '33333333', '33322333', '33333333', '22333332', '33333333'], solid: 1 },
+  'b': { rows: ['33333333', '13113113', '13113113', '13113113', '13113113', '13113113', '13113113', '33333333'], solid: 1 },
+  'H': { rows: ['12222221', '22232222', '23222322', '22222232', '22322222', '22222322', '23222222', '32333323'], solid: 1, opaque: 1 },
+  'm': { rows: ['22222222', '22122222', '22222212', '21222222', '22222122', '22222222', '12222222', '22221222'] }, // wilderness ground
+};
+// each tile's four shades become real colours; null marks the background shade of objects
+// that sit on top of whatever ground is next to them (lanterns, trees, wells, bars)
+const STONE = ['#e0d0b0', '#c4ad86', '#9c8462', '#5e4a3a'], LIME = ['#fbf1d6', '#e3cc93', '#c4a46a', '#7d6040'];
+const TILE_COL = {
+  '.': ['#d8c7a6', '#b9a27f', '#8f7759', '#5e4a3a'], 'p': ['#f1e0b6', '#dcc290', '#b89a66', '#7d6040'],
+  ',': ['#b5d86a', '#86b84a', '#5a9440', '#33663a'], 'R': ['#f2a46a', '#d9773f', '#b4532c', '#7a3220'],
+  'r': ['#f6dcb0', '#d9773f', '#b4532c', '#7a3220'], 'W': ['#f6e3b8', '#e2c08a', '#c39a62', '#7a5638'],
+  'J': ['#fbf1d6', '#e3cc93', '#d9a63c', '#6e5232'], 'd': ['#ffd968', '#e2c08a', '#c39a62', '#4a2c1c'],
+  'D': ['#ffd968', '#e2c08a', '#c39a62', '#4a2c1c'], 'w': ['#ffe9a0', '#e2c08a', '#c39a62', '#3a2a33'],
+  'L': ['#ffd968', null, '#a07a4a', '#4a3424'], 'T': ['#9fd06a', '#5fa040', null, '#2c5a2e'],
+  'S': ['#f7ebc8', '#c9a063', '#8a5a34', '#c2453a'], 'O': ['#e3d6bd', null, '#a8957a', '#2e5d86'],
+  'B': ['#f0c890', '#d49a5c', '#b07a46', '#5a3520'], '=': LIME, 'I': LIME, 'X': STONE,
+  'g': ['#e2b07a', '#b07a46', '#8a5a34', '#3e2a20'], ' ': ['#1b1528', '#1b1528', '#1b1528', '#1b1528'],
+  'f': ['#e8c48e', '#cf9e66', '#a8763f', '#6b4426'], 't': ['#f0c890', '#cf9e66', '#a8763f', '#5a3520'],
+  'h': ['#f6e3b8', '#e2c08a', '#b08f5c', '#6b4a30'], '~': ['#bfe8ef', '#6fc0d8', '#3a8fb7', '#1f5f8c'],
+  'b': ['#8a8a96', null, '#5a5a66', '#33333d'], 'H': ['#9fd06a', '#6aa344', '#3f7a3a', '#24502e'],
+  'm': ['#ead19a', '#d4b073', '#b88f55', '#8a6a40'],
+};
+const GROUND = '.p,mf=';
+const TILES = {};
+for (const k in TILE_DEF) {
+  const pal = ramp(TILE_COL[k]), bmp = bmpFrom(TILE_DEF[k].rows);
+  for (let i = 0; i < bmp.length; i++) if (bmp[i] !== 255) bmp[i] = pal[bmp[i]];
+  TILES[k] = { bmp, solid: !!TILE_DEF[k].solid, opaque: !!TILE_DEF[k].opaque, overlay: TILE_COL[k].includes(null) };
+}
+
+/* ================= CHARACTER SPRITES (16x16, drawn from templates) ================= */
+const BODY = {
+  down: ['......oooo......', '....oohhhhoo....', '...ohhhhhhhho...', '..ohhhkkkkhhho..', '..ohhkekkekhho..', '..ohhkkkkkkhho..', '...ohhkkkkhho...', '..oohhhhhhhhoo..',
+         '.orrhrrrrrrhrro.', '.orrrrrrrrrrrro.', '.okrrttttttrrko.', '..orrrrrrrrrro..', '..orrrrrrrrrro..', '..orrrrrrrrrro..'],
+  up:   ['......oooo......', '....oohhhhoo....', '...ohhhhhhhho...', '..ohhhhhhhhhho..', '..ohhhhhhhhhho..', '..ohhhhhhhhhho..', '...ohhhhhhhho...', '..oohhhhhhhhoo..',
+         '.orrhrrrrrrhrro.', '.orrrrrrrrrrrro.', '.okrrttttttrrko.', '..orrrrrrrrrro..', '..orrrrrrrrrro..', '..orrrrrrrrrro..'],
+  side: ['......oooo......', '....oohhhhoo....', '...ohhhhhhhho...', '..okkkhhhhhho...', '..oekkhhhhhho...', '..okkkkhhhhho...', '...okkkhhhho....', '...oohhhhhhoo...',
+         '...orrrrrrro....', '...orrrrrrrro...', '..okrrttttrro...', '...orrrrrrrro...', '...orrrrrrrro...', '...orrrrrrrro...'],
+};
+const LEGS = {
+  down: [['...ofo....ofo...', '...ooo....ooo...'], ['...ofo....ooo...', '...ooo..........'], ['...ooo....ofo...', '..........ooo...']],
+  up:   [['...ofo....ofo...', '...ooo....ooo...'], ['...ooo....ofo...', '..........ooo...'], ['...ofo....ooo...', '...ooo..........']],
+  side: [['....ofo..ofo....', '....ooo..ooo....'], ['..ofo......ofo..', '..ooo......ooo..'], ['......ofo.......', '......ooo.......']],
+};
+const HELMET = ['......ommo......', '....oommmmoo....', '...ommmmmmmmo...'];
+const INK = '#2b1d1a';
+const SKIN = { a: ['#c98a5e', '#a86a44'], b: ['#b47a52', '#8e5a3a'], c: ['#d9a074', '#b47e56'] };
+function makeChar(spec, opts = {}) {
+  const two = a => ramp(a);
+  const P = { k: two(spec.skin || SKIN.a), h: two(spec.hood), r: two(spec.robe), m: two(spec.metal || ['#e8c56a', '#b48a3a']), b: two(opts.beard || ['#5a3a28', '#3e2618']) };
+  const flat = { o: addColor(INK), e: addColor(INK), f: addColor('#4a2e1e'), t: addColor(spec.trim) };
+  const build = (dirKey, legs) => {
+    let rows = BODY[dirKey].slice();
+    if (opts.helmet) { rows = rows.slice(); for (let i = 0; i < 3; i++) rows[i] = HELMET[i]; }
+    if (opts.band) { rows = rows.slice(); rows[2] = rows[2].replace(/h/g, 't'); }
+    if (opts.beard) {
+      const put = (r, xs) => { const c = rows[r].split(''); xs.forEach(i => { if (c[i] !== '.' && c[i] !== 'o') c[i] = 'b'; }); rows[r] = c.join(''); };
+      if (dirKey === 'down') { put(5, [6, 7, 8, 9]); put(6, [6, 7, 8, 9]); put(7, [7, 8]); }
+      if (dirKey === 'side') { put(5, [3, 4, 5]); put(6, [4, 5, 6]); put(7, [4, 5]); }
+    }
+    rows = rows.concat(legs);
+    const a = new Uint8Array(256);
+    rows.forEach((r, y) => {
+      for (let x = 0; x < 16; x++) {
+        const ch = r[x];
+        if (ch === '.') { a[y * 16 + x] = 255; continue; }
+        if (P[ch]) { // light from the upper left: shade the right edge and the hem
+          const nx = r[x + 1], shade = nx === 'o' || nx === '.' || nx === undefined || (ch === 'r' && y >= 12);
+          a[y * 16 + x] = P[ch][shade ? 1 : 0];
+        } else a[y * 16 + x] = flat[ch];
+      }
+    });
+    return a;
+  };
+  const out = { skin: P.k, robe: P.r, prop: opts.prop };
+  for (const d of ['down', 'up', 'side']) out[d] = LEGS[d].map(l => build(d, l));
+  const s = out.side[0], lying = new Uint8Array(256);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) lying[x * 16 + (15 - y)] = s[y * 16 + x];
+  out.lying = lying;
+  return out;
+}
+// every major figure keeps one signature colour across chapters
+const BEARD = { brown: ['#5a3a28', '#3e2618'], grey: ['#d8d0c0', '#a89e8a'], black: ['#2e2420', '#1c1614'] };
+const SPR = {
+  servant:   makeChar({ hood: ['#e2c08a', '#b8955a'], robe: ['#3f9a86', '#2c6f62'], trim: '#f7ebc8', skin: SKIN.a }),
+  kish:      makeChar({ hood: ['#4a2a3a', '#2f1a26'], robe: ['#7a2433', '#561826'], trim: '#d9a63c', skin: SKIN.b }, { beard: BEARD.black, prop: 'dagger' }),
+  band:      makeChar({ hood: ['#3c3548', '#2a2433'], robe: ['#5a4a66', '#3f3449'], trim: '#b8443a', skin: SKIN.a }),
+  lookout:   makeChar({ hood: ['#3c3548', '#2a2433'], robe: ['#6b5a46', '#4d402f'], trim: '#b8443a', skin: SKIN.c }),
+  guard:     makeChar({ hood: ['#b84a3a', '#8a3328'], robe: ['#c2453a', '#8e2f28'], trim: '#e8c56a', skin: SKIN.c, metal: ['#e8c56a', '#b48a3a'] }, { helmet: true }),
+  helaman:   makeChar({ hood: ['#3a5fb0', '#2a4585'], robe: ['#f3ead2', '#cfc2a0'], trim: '#e8c56a', skin: SKIN.a }, { band: true, beard: BEARD.grey }),
+  gadianton: makeChar({ hood: ['#2a2433', '#1c1724'], robe: ['#3a3045', '#28202f'], trim: '#c2453a', skin: SKIN.b }, { prop: 'dagger' }),
+  citizen:   makeChar({ hood: ['#e2b45a', '#b88a3a'], robe: ['#d9c3a0', '#b39e7a'], trim: '#8a5a34', skin: SKIN.c }),
+  samuel:    makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#c98a3a', '#9c6a28'], trim: '#c2453a', skin: SKIN.b }, { band: true, prop: 'staff' }),
+  nephi:     makeChar({ hood: ['#e8dcc0', '#c4b494'], robe: ['#3a6fc8', '#2a5296'], trim: '#f3ead2', skin: SKIN.a }, { beard: BEARD.brown, prop: 'staff' }),
+  judge:     makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#f3ead2', '#cfc2a0'], trim: '#7a3f9c', skin: SKIN.c, metal: ['#8a4fb0', '#5e2f80'] }, { helmet: true, beard: BEARD.black }),
+  seantum:   makeChar({ hood: ['#6b4a30', '#4d3420'], robe: ['#3f6b3a', '#2c4d29'], trim: '#d9a63c', skin: SKIN.b }, { beard: BEARD.brown }),
+  five:      makeChar({ hood: ['#8a6a40', '#664e2e'], robe: ['#a8502c', '#7a3a20'], trim: '#f7ebc8', skin: SKIN.a }),
+  five2:     makeChar({ hood: ['#d9c3a0', '#b39e7a'], robe: ['#5a7a8a', '#42596a'], trim: '#2b1d1a', skin: SKIN.c }),
+  five3:     makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#8a8a3a', '#66662a'], trim: '#b8443a', skin: SKIN.b }, { band: true }),
+  archer:    makeChar({ hood: ['#4a6b3a', '#344d29'], robe: ['#8a5a34', '#664224'], trim: '#e2c08a', skin: SKIN.c }),
+  // chapter 4: the sign
+  believer:  makeChar({ hood: ['#f3ead2', '#cfc2a0'], robe: ['#5fa8d8', '#3f7fae'], trim: '#e8c56a', skin: SKIN.c }),
+  nephiSon:  makeChar({ hood: ['#5a3a28', '#3e2618'], robe: ['#2f58a8', '#21407e'], trim: '#e8c56a', skin: SKIN.a }, { band: true, prop: 'staff' }),
+  scoffer:   makeChar({ hood: ['#6b3a5a', '#4a2840'], robe: ['#8a5a7a', '#66405a'], trim: '#e2b45a', skin: SKIN.b }),
+  elder:     makeChar({ hood: ['#e8dcc0', '#c4b494'], robe: ['#9c6a8a', '#764e68'], trim: '#f7ebc8', skin: SKIN.c }, { beard: BEARD.grey }),
+};
+function drawChar(spr, dir, frameIdx, fx, fy) {
+  const x = Math.round(fx) - 8, y = Math.round(fy) - 15;
+  if (dir === 'lying') { blit(spr.lying, 16, 16, x, y + 4, false); return; }
+  const key = dir === 'left' || dir === 'right' ? 'side' : dir;
+  if (spr.prop === 'staff' && dir === 'up') drawProp(spr.prop, dir, x, y, frameIdx);   // behind the body
+  blit(spr[key][frameIdx], 16, 16, x, y, dir === 'right');
+  if (spr.prop && dir !== 'up') drawProp(spr.prop, dir, x, y, frameIdx);
+}
+function drawProp(kind, dir, x, y, f) {
+  const bob = f ? 1 : 0;
+  if (kind === 'staff') {
+    const sx = x + (dir === 'down' ? 13 : dir === 'up' ? 2 : dir === 'left' ? 3 : 12);
+    rect(sx, y + 1 + bob, 1, 15, addColor('#8a5a34')); pset(sx, y + bob, addColor('#5a3520')); pset(sx - (dir === 'left' ? -1 : 1), y + bob, addColor('#5a3520'));
+  } else if (kind === 'dagger') {
+    const dx = x + (dir === 'down' ? 4 : dir === 'left' ? 9 : 6), dy = y + 10;
+    pset(dx, dy, addColor('#5a3520')); pset(dx, dy + 1, addColor('#d8dce4')); pset(dx, dy + 2, addColor('#a8aebc'));
+  }
+}
+// small 8x8 overhead bubbles
+const BUBBLES = {
+  talk: bmpFrom(['.333333.', '30000003', '30000003', '30303003', '30000003', '.333333.', '..33....', '.3......']),
+  alert: bmpFrom(['..3333..', '..3003..', '..3003..', '..3003..', '..3333..', '..3003..', '..3333..', '........']),
+  ask: bmpFrom(['.33333..', '3000003.', '3333003.', '..30033.', '..3003..', '..3333..', '..3003..', '..3333..']),
+  ear: bmpFrom(['..3333..', '.300003.', '.303303.', '.333003.', '...3003.', '...3003.', '..3003..', '..333...']),
+};
+for (const k in BUBBLES) { const b = BUBBLES[k]; for (let i = 0; i < b.length; i++) if (b[i] !== 255) b[i] = RAMP.ui[b[i]]; }
+
+/* ================= SOUND (Web Audio, Game Boy style) ================= */
+const Sound = (() => {
+  let ac = null, master = null, musicBus = null, sfxBus = null, noiseBuf = null;
+  let muted = false; try { muted = localStorage.getItem('soh-muted') === '1'; } catch (_) {}
+  const waves = {};
+  let song = null, songName = null, nextTime = 0, stepIdx = 0, pendingSong = null;
+
+  function pulseWave(duty) {
+    const n = 64, re = new Float32Array(n), im = new Float32Array(n);
+    for (let k = 1; k < n; k++) { re[k] = (2 / (k * Math.PI)) * Math.sin(2 * k * Math.PI * duty); im[k] = (2 / (k * Math.PI)) * (1 - Math.cos(2 * k * Math.PI * duty)); }
+    return ac.createPeriodicWave(re, im);
+  }
+  function unlock() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      ac = new AC();
+      master = ac.createGain(); master.gain.value = muted ? 0 : 0.5; master.connect(ac.destination);
+      musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(master);
+      sfxBus = ac.createGain(); sfxBus.gain.value = 0.7; sfxBus.connect(master);
+      waves.p12 = pulseWave(0.125); waves.p25 = pulseWave(0.25); waves.p50 = pulseWave(0.5);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * 1, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); let lfsr = 0x7fff;
+      for (let i = 0; i < d.length; i++) { const bit = (lfsr ^ (lfsr >> 1)) & 1; lfsr = (lfsr >> 1) | (bit << 14); d[i] = (lfsr & 1) ? 0.6 : -0.6; }
+      if (pendingSong) { const s = pendingSong; pendingSong = null; play(s); }
+    }
+    if (ac.state === 'suspended') ac.resume();
+    updateBtn();
+  }
+  function midi(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+  function note(wave, freq, t, dur, vol, bus, slide) {
+    const o = ac.createOscillator(); o.setPeriodicWave(waves[wave]);
+    o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.setValueAtTime(vol, t + Math.max(0.01, dur - 0.04)); g.gain.linearRampToValueAtTime(0, t + dur);
+    o.connect(g); g.connect(bus || musicBus); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(t, dur, vol, rate, bus) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.playbackRate.value = rate || 1; s.loop = true;
+    const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(g); g.connect(bus || musicBus); s.start(t); s.stop(t + dur + 0.02);
+  }
+  const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  function parse(str) { // "E4:3 F4:1 -:2" (lengths in steps)
+    const out = [];
+    for (const tok of str.trim().split(/\s+/)) {
+      if (tok === '|') continue;
+      const [n, l] = tok.split(':'); const len = +(l || 1);
+      if (n === '-') { out.push([null, len]); continue; }
+      const m = n.match(/^([A-G])(b|#)?(\d)$/);
+      const v = NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (+m[3] + 1) * 12;
+      out.push([v, len]);
+    }
+    return out;
+  }
+  function track(wave, vol, str, opts = {}) {
+    const notes = parse(str); const steps = []; let pos = 0;
+    for (const [n, len] of notes) { steps.push({ pos, n, len }); pos += len; }
+    return { wave, vol, steps, total: pos, legato: opts.legato ?? 0.9, drum: false };
+  }
+  function drums(pattern, vol) { // k = kick, h = hat, s = snare, . = rest
+    const steps = []; [...pattern].forEach((c, i) => { if (c !== '.') steps.push({ pos: i, n: c, len: 1 }); });
+    return { drum: true, vol, steps, total: pattern.length };
+  }
+  const SONGS = {
+    night: { bpm: 88, tracks: [
+      track('p50', 0.07, 'A2:2 A2:1 E3:1 A2:2 Bb2:1 A2:1 A2:2 A2:1 E3:1 G2:2 Bb2:1 A2:1 A2:2 A2:1 E3:1 A2:2 Bb2:1 A2:1 F2:2 F2:1 C3:1 E2:2 G#2:1 E2:1 ' +
+                         'A2:2 A2:1 E3:1 A2:2 Bb2:1 A2:1 A2:2 A2:1 E3:1 G2:2 Bb2:1 A2:1 D3:2 D3:1 A2:1 F2:2 E2:1 F2:1 E2:2 E2:1 B2:1 E2:2 G#2:1 E2:1', { legato: 0.6 }),
+      track('p25', 0.045, '-:8 E4:3 F4:1 E4:2 -:2 D4:2 C4:2 B3:4 E4:3 F4:1 G4:2 F4:2 E4:6 -:2 -:8 A4:3 G4:1 F4:2 E4:2 D4:2 E4:2 F4:4 E4:2 D4:2 C4:2 B3:2 A3:6 -:2'),
+      drums('k...h...k.k.h...k...h...k.k.h.h.k...h...k.k.h...k...h...k.k.h.h.', 0.05),
+    ] },
+    escape: { bpm: 126, tracks: [
+      track('p50', 0.07, 'D2:1 D3:1 D2:1 D3:1 C2:1 C3:1 C2:1 C3:1 Bb1:1 Bb2:1 Bb1:1 Bb2:1 A1:1 A2:1 C#2:1 E2:1 D2:1 D3:1 D2:1 D3:1 C2:1 C3:1 C2:1 C3:1 Bb1:1 Bb2:1 G1:1 G2:1 A1:1 A2:1 A1:1 A2:1', { legato: 0.5 }),
+      track('p25', 0.045, 'D4:2 F4:1 A4:1 G4:2 F4:2 E4:2 F4:1 G4:1 A4:4 Bb4:2 A4:1 G4:1 F4:2 E4:2 D4:3 E4:1 C#4:4'),
+      drums('k.h.s.h.k.h.s.hhk.h.s.h.k.k.s.h.', 0.05),
+    ] },
+    house: { bpm: 76, tracks: [
+      track('p50', 0.06, 'F2:4 C3:4 Bb2:4 F2:4 C3:4 G2:4 C3:4 E3:4 F2:4 C3:4 Bb2:4 D3:4 C3:4 C3:2 Bb2:2 F2:8', { legato: 0.8 }),
+      track('p12', 0.04, 'A4:4 C5:2 A4:2 G4:4 F4:4 E4:2 F4:2 G4:2 A4:2 G4:8 A4:4 C5:2 D5:2 C5:4 A4:4 G4:2 A4:2 G4:2 E4:2 F4:8'),
+    ] },
+    wild: { bpm: 70, tracks: [
+      track('p50', 0.06, 'D2:8 C2:8 Bb1:8 A1:8', { legato: 0.95 }),
+      track('p25', 0.035, 'A4:6 G4:2 F4:4 E4:4 D4:6 E4:2 F4:8 G4:6 F4:2 E4:4 D4:4 C#4:8 E4:8'),
+    ] },
+    wall: { bpm: 132, tracks: [
+      track('p50', 0.065, 'E2:1 E3:1 E2:1 E3:1 E2:1 E3:1 D2:1 D3:1 C2:1 C3:1 C2:1 C3:1 D2:1 D3:1 B1:1 B2:1 E2:1 E3:1 E2:1 E3:1 G2:1 G3:1 F#2:1 F#3:1 C2:1 C3:1 A1:1 A2:1 B1:1 B2:1 B1:1 D#3:1', { legato: 0.5 }),
+      track('p25', 0.04, 'E4:2 G4:2 B4:3 A4:1 G4:2 F#4:2 E4:4 D4:2 E4:2 G4:3 F#4:1 E4:2 D4:2 B3:4 E4:2 G4:2 B4:3 C5:1 B4:2 A4:2 G4:4 A4:2 G4:2 F#4:2 D#4:2 E4:8'),
+      drums('k.h.s.h.k.k.s.h.k.h.s.h.k.h.s.hh', 0.05),
+    ] },
+    map: { bpm: 104, tracks: [
+      track('p50', 0.06, 'D2:2 A2:2 D3:2 A2:2 C2:2 G2:2 C3:2 G2:2 Bb1:2 F2:2 Bb2:2 F2:2 A1:2 E2:2 A2:2 C#3:2'),
+      track('p25', 0.042, 'D4:3 E4:1 F4:2 A4:2 G4:4 E4:4 F4:3 G4:1 A4:2 D5:2 C#5:8'),
+      drums('k...h.k.k...h...', 0.04),
+    ] },
+    climax: { bpm: 144, tracks: [
+      track('p50', 0.065, 'E2:1 E3:1 E2:1 E3:1 E2:1 E3:1 E2:1 E3:1 C2:1 C3:1 C2:1 C3:1 D2:1 D3:1 D2:1 D3:1'),
+      track('p25', 0.04, 'B4:2 G4:2 E4:2 G4:2 C5:2 B4:2 A4:2 F#4:2 B4:2 G4:2 E4:2 G4:2 A4:2 B4:2 D5:4'),
+      drums('k.h.s.h.k.k.s.h.', 0.05),
+    ] },
+    glory: { bpm: 66, tracks: [
+      track('p50', 0.06, 'C3:8 A2:8 F2:8 G2:8 C3:8 E3:8 F2:4 G2:4 C3:8', { legato: 0.95 }),
+      track('p25', 0.045, 'E4:4 G4:4 C5:8 B4:4 A4:4 G4:8 A4:4 C5:4 F5:8 E5:4 D5:4 C5:8', { legato: 0.95 }),
+      track('p12', 0.03, 'C4:8 C4:8 A3:8 B3:8 C4:8 G4:8 A4:4 B4:4 C5:8', { legato: 0.95 }),
+    ] },
+    title: null,
+  };
+  SONGS.title = SONGS.night;
+  function play(name) {
+    if (!ac) { pendingSong = name; return; }
+    if (songName === name) return;
+    songName = name; song = name ? SONGS[name] : null; stepIdx = 0; nextTime = ac.currentTime + 0.08;
+  }
+  function stopMusic() { songName = null; song = null; pendingSong = null; }
+  function schedule() {
+    if (!ac || !song) return;
+    const stepDur = 60 / song.bpm / 2; // 8th-note steps
+    while (nextTime < ac.currentTime + 0.25) {
+      for (const tr of song.tracks) {
+        const local = stepIdx % tr.total;
+        for (const st of tr.steps) if (st.pos === local) {
+          if (tr.drum) {
+            if (st.n === 'k') { note('p50', 110, nextTime, 0.08, tr.vol * 1.6, musicBus, 40); }
+            else if (st.n === 'h') noise(nextTime, 0.04, tr.vol * 0.6, 1.0);
+            else if (st.n === 's') noise(nextTime, 0.12, tr.vol, 0.5);
+          } else if (st.n !== null) note(tr.wave, midi(st.n), nextTime, st.len * stepDur * tr.legato, tr.vol);
+        }
+      }
+      nextTime += stepDur; stepIdx++;
+    }
+  }
+  const SFX = {
+    blip: () => note('p12', 1320, ac.currentTime, 0.025, 0.03, sfxBus),
+    next: () => note('p25', 990, ac.currentTime, 0.04, 0.04, sfxBus),
+    move: () => note('p25', 660, ac.currentTime, 0.03, 0.04, sfxBus),
+    select: () => { const t = ac.currentTime; note('p25', 880, t, 0.05, 0.05, sfxBus); note('p25', 1320, t + 0.05, 0.07, 0.05, sfxBus); },
+    page: () => noise(ac.currentTime, 0.08, 0.06, 2.0, sfxBus),
+    step: () => noise(ac.currentTime, 0.03, 0.025, 0.35, sfxBus),
+    alert: () => { const t = ac.currentTime; note('p50', 1200, t, 0.06, 0.06, sfxBus); note('p50', 1600, t + 0.07, 0.1, 0.06, sfxBus); },
+    caught: () => { const t = ac.currentTime; note('p50', 600, t, 0.12, 0.06, sfxBus, 300); note('p50', 300, t + 0.13, 0.25, 0.06, sfxBus, 120); noise(t, 0.3, 0.05, 0.4, sfxBus); },
+    wrong: () => { const t = ac.currentTime; note('p50', 160, t, 0.18, 0.07, sfxBus); note('p50', 150, t + 0.2, 0.25, 0.07, sfxBus); },
+    right: () => { const t = ac.currentTime; note('p25', 660, t, 0.06, 0.05, sfxBus); note('p25', 990, t + 0.07, 0.1, 0.05, sfxBus); },
+    jingle: () => { const t = ac.currentTime; [72, 76, 79, 84].forEach((n, i) => note('p25', midi(n), t + i * 0.09, 0.09, 0.06, sfxBus)); note('p25', midi(88), t + 0.36, 0.35, 0.06, sfxBus); note('p50', midi(48), t, 0.7, 0.05, sfxBus); },
+    learn: () => { const t = ac.currentTime; [69, 72, 76, 81].forEach((n, i) => note('p12', midi(n), t + i * 0.1, 0.12, 0.05, sfxBus)); },
+    heart: () => { const t = ac.currentTime; note('p50', 70, t, 0.09, 0.09, sfxBus, 45); note('p50', 70, t + 0.16, 0.09, 0.07, sfxBus, 45); },
+    strike: () => { const t = ac.currentTime; noise(t, 0.35, 0.12, 0.8, sfxBus); note('p50', 220, t, 0.3, 0.07, sfxBus, 55); },
+    door: () => { const t = ac.currentTime; noise(t, 0.15, 0.06, 0.3, sfxBus); note('p50', 98, t, 0.12, 0.05, sfxBus); },
+    twang: () => { const t = ac.currentTime; note('p12', 900, t, 0.06, 0.035, sfxBus, 300); noise(t, 0.05, 0.03, 3, sfxBus); },
+    toss: () => noise(ac.currentTime, 0.1, 0.03, 0.6, sfxBus),
+    thud: () => { const t = ac.currentTime; noise(t, 0.15, 0.06, 0.25, sfxBus); note('p50', 80, t, 0.1, 0.05, sfxBus, 50); },
+    glance: () => { const t = ac.currentTime; note('p12', 1760, t, 0.05, 0.05, sfxBus, 2600); note('p25', 220, t + 0.03, 0.2, 0.05, sfxBus, 140); },
+    preach: () => note('p12', 520, ac.currentTime, 0.04, 0.02, sfxBus, 620),
+    start: () => { const t = ac.currentTime; note('p25', midi(76), t, 0.08, 0.06, sfxBus); note('p25', midi(83), t + 0.08, 0.16, 0.06, sfxBus); },
+  };
+  function sfx(name) { if (!ac || muted || !SFX[name]) return; try { SFX[name](); } catch (_) {} }
+  function updateBtn() { const b = document.getElementById('bMute'); if (b) b.textContent = muted ? 'Sound off' : 'Sound on'; }
+  function toggleMute() {
+    muted = !muted; try { localStorage.setItem('soh-muted', muted ? '1' : '0'); } catch (_) {}
+    if (master) master.gain.setTargetAtTime(muted ? 0 : 0.5, ac.currentTime, 0.02);
+    updateBtn();
+  }
+  document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden) ac.suspend(); else ac.resume(); });
+  updateBtn();
+  return { unlock, play, stopMusic, schedule, sfx, toggleMute, get muted() { return muted; }, get song() { return songName; } };
+})();
+
+/* ================= MAPS ================= */
+class TileMap {
+  constructor(rows) {
+    this.rows = rows; this.h = rows.length; this.w = rows[0].length; this.pw = this.w * 8; this.ph = this.h * 8;
+    this.lights = [];
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      const c = rows[y][x];
+      if (c === 'L') this.lights.push({ x: x * 8 + 4, y: y * 8 + 2, r: 20, seed: x * 7 + y * 13 });
+      if (c === 'w') this.lights.push({ x: x * 8 + 4, y: y * 8 + 5, r: 8, seed: x * 3 + y, small: 1 });
+    }
+  }
+  get(tx, ty) { if (tx < 0 || ty < 0 || tx >= this.w || ty >= this.h) return ' '; return this.rows[ty][tx]; }
+  tile(tx, ty) { return TILES[this.get(tx, ty)] || TILES[' ']; }
+  under(tx, ty) { // the ground an object tile stands on
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1], [-2, 0], [2, 0]]) { const c = this.get(tx + dx, ty + dy); if (GROUND.includes(c)) return TILES[c]; }
+    return TILES['.'];
+  }
+  solidAt(px, py) { return this.tile(Math.floor(px / 8), Math.floor(py / 8)).solid; }
+  opaqueAt(px, py) { return this.tile(Math.floor(px / 8), Math.floor(py / 8)).opaque; }
+}
+function gridOf(w, h, c) { return Array.from({ length: h }, () => Array(w).fill(c)); }
+function mapTools(m) {
+  const w = m[0].length, h = m.length;
+  const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < w && y < h) m[y][x] = c; };
+  const fill = (x, y, ww, hh, c) => { for (let j = y; j < y + hh; j++) for (let i = x; i < x + ww; i++) set(i, j, c); };
+  const bld = (x, y, ww, hh, door, wins = []) => {
+    fill(x, y, ww, hh - 2, 'R'); fill(x, y + hh - 3, ww, 1, 'r'); fill(x, y + hh - 2, ww, 2, 'W');
+    wins.forEach(i => set(x + i, y + hh - 2, 'w'));
+    if (door != null) { set(x + door, y + hh - 2, 'd'); set(x + door, y + hh - 1, 'D'); }
+  };
+  return { set, fill, bld };
+}
+
+/* The city of Zarahemla: one map used by scenes 2, 3, 4 and 5 */
+function buildCity() {
+  const m = gridOf(64, 48, '.');
+  const { set, fill, bld } = mapTools(m);
+  fill(0, 0, 64, 2, 'X'); fill(0, 46, 64, 2, 'X'); fill(0, 0, 2, 48, 'X'); fill(62, 0, 2, 48, 'X');
+  set(62, 14, 'g'); set(62, 15, 'g'); set(63, 14, 'g'); set(63, 15, 'g');
+  // north-west blocks
+  bld(2, 2, 8, 8, 4, [1, 6]); bld(12, 2, 8, 8, 3, [1, 6]);
+  // judgment seat (temple) with plaza, steps and colonnade
+  fill(22, 2, 20, 17, 'p');
+  fill(24, 2, 16, 6, 'R'); fill(24, 7, 16, 1, 'r'); fill(24, 8, 16, 2, 'J');
+  for (let x = 25; x < 39; x += 3) { set(x, 8, 'I'); set(x, 9, 'I'); }
+  set(31, 9, 'D'); set(32, 9, 'D'); set(31, 8, 'd'); set(32, 8, 'd');
+  fill(27, 10, 10, 2, '=');
+  for (const y of [13, 15]) { set(29, y, 'I'); set(34, y, 'I'); }
+  set(29, 11, 'L'); set(34, 11, 'L'); set(29, 18, 'L'); set(34, 18, 'L');
+  set(23, 11, 'L'); set(40, 11, 'L');
+  set(24, 15, 'T'); set(39, 15, 'T'); set(24, 13, 'T'); set(39, 13, 'T');
+  // north-east
+  bld(44, 2, 7, 8, 3, [1, 5]); bld(53, 2, 9, 6, 4, [2, 6]);
+  // middle row
+  bld(2, 12, 8, 7, 4, [2, 6]); bld(12, 12, 8, 7, 3, [6]); bld(44, 12, 7, 7, 3, [1, 5]);
+  // gate yard (east)
+  fill(53, 8, 9, 11, 'p');
+  set(60, 9, 'B'); set(61, 9, 'B'); set(60, 10, 'B'); set(54, 9, 'B'); set(55, 9, 'B');
+  set(56, 16, 'B'); set(57, 16, 'B'); set(53, 12, 'B');
+  set(61, 13, 'L'); set(61, 16, 'L');
+  // main street lanterns (rows 19-20)
+  for (const x of [6, 16, 46, 57]) set(x, 19, 'L');
+  // west of market
+  bld(2, 21, 8, 8, 4, [2, 6]); bld(12, 21, 8, 8, 3, [1, 6]);
+  // market square
+  fill(22, 21, 20, 10, 'p');
+  for (const [x, y] of [[23, 23], [23, 24], [23, 27], [26, 23], [26, 27], [37, 23], [37, 27], [40, 23], [40, 24], [40, 27], [40, 28]]) set(x, y, 'S');
+  set(31, 25, 'O'); set(22, 21, 'L'); set(41, 21, 'L'); set(22, 30, 'L'); set(41, 30, 'L');
+  // east of market
+  bld(44, 21, 7, 8, 3, [1, 5]); bld(53, 21, 9, 8, 4, [2, 7]);
+  // street rows 31-32 lanterns
+  for (const x of [6, 16, 46]) set(x, 31, 'L');
+  // south: Helaman's house, houses, garden, dark street
+  bld(2, 34, 8, 7, 4, [1, 6]); set(3, 41, 'L'); set(8, 41, 'L');
+  bld(12, 34, 8, 7, 3, [6]);
+  fill(22, 33, 20, 13, ',');
+  for (const [x, y] of [[23, 34], [26, 34], [29, 34], [36, 34], [39, 34], [23, 37], [23, 41], [23, 44], [40, 37], [40, 41], [40, 44], [27, 43], [36, 43], [29, 37]]) set(x, y, 'T');
+  set(33, 39, 'O'); set(24, 39, 'L'); set(39, 39, 'L');
+  fill(31, 33, 2, 13, 'p'); fill(22, 40, 20, 1, 'p');
+  bld(44, 33, 7, 8, 3, [1, 5]); bld(53, 33, 9, 8, 4, [2, 6]);
+  set(46, 42, 'B'); set(47, 42, 'B'); set(58, 43, 'B');
+  return new TileMap(m.map(r => r.join('')));
+}
+function buildHouseInterior() {
+  const m = gridOf(20, 18, 'f');
+  const { fill, set } = mapTools(m);
+  fill(0, 0, 20, 3, 'h'); fill(0, 0, 1, 18, 'h'); fill(19, 0, 1, 18, 'h'); fill(0, 17, 20, 1, 'h');
+  set(5, 1, 'w'); set(14, 1, 'w'); set(9, 17, 'f'); set(10, 17, 'f');
+  fill(8, 6, 4, 2, 't'); set(3, 4, 'L'); set(16, 4, 'L');
+  set(2, 14, 'B'); set(17, 14, 'B'); set(17, 13, 'B');
+  return new TileMap(m.map(r => r.join('')));
+}
+function buildWilderness() {
+  const m = gridOf(24, 18, 'm');
+  const { fill, set } = mapTools(m);
+  fill(0, 8, 24, 3, ',');
+  for (const [x, y] of [[1, 2], [4, 1], [7, 3], [11, 1], [15, 2], [19, 1], [22, 3], [2, 5], [9, 6], [17, 5], [21, 6], [1, 13], [5, 15], [8, 12], [13, 14], [16, 13], [20, 15], [23, 12], [3, 16], [11, 16], [18, 16]]) set(x, y, 'T');
+  return new TileMap(m.map(r => r.join('')));
+}
+
+/* ================= FIELD (exploration mode) ================= */
+const DIRV = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+function ent(o) { return Object.assign({ x: 0, y: 0, dir: 'down', anim: 0, frame: 0, moving: false, alert: 0, seen: false, pi: 0, pause: 0, speed: 0.5, lookT: 0, li: 0 }, o); }
+const Field = {
+  map: null, P: null, npcs: [], follower: null, trail: [], groups: [], triggers: [], cfg: {}, cam: { x: 0, y: 0 },
+  lock: 0, stepT: 0, caughtBusy: false,
+  setup(map, cfg) {
+    this.map = map; this.cfg = cfg; this.npcs = cfg.npcs || []; this.groups = cfg.groups || []; this.triggers = cfg.triggers || [];
+    this.P = ent({ x: cfg.start[0], y: cfg.start[1], dir: cfg.startDir || 'down', spr: cfg.playerSpr || SPR.servant, kind: 'player' });
+    this.follower = cfg.follower ? ent({ x: cfg.follower[0], y: cfg.follower[1], dir: 'down', spr: SPR.kish, kind: 'kish' }) : null;
+    this.frags = (cfg.frags || []).filter(id => !PROG.frags[id] && FRAGS[id]).map(id => ({ id, x: FRAGS[id].x, y: FRAGS[id].y })); this.camLock = null;
+    this.trail = []; this.lock = 0; this.caughtBusy = false; this.gen = (this.gen || 0) + 1; this.gap = 0; this.followerLive = false; this.extraLights = null; this.canAct = false;
+    for (const n of this.npcs) { n.home = { x: n.x, y: n.y, dir: n.dir }; n.pi = 0; n.pause = 0; n.alert = 0; }
+    this.snapCam();
+  },
+  resetNPCs() { for (const n of this.npcs) { n.x = n.home.x; n.y = n.home.y; n.dir = n.home.dir; n.pi = 0; n.pause = 30; n.alert = 0; n.lookT = 0; n.li = 0; } },
+  boxBlocked(x, y, self) {
+    const m = this.map;
+    if (m.solidAt(x - 5, y - 3) || m.solidAt(x + 4, y - 3) || m.solidAt(x - 5, y) || m.solidAt(x + 4, y)) return true;
+    if (self === this.P) for (const n of this.npcs) if (n.solid && !n.hidden && Math.abs(n.x - x) < 10 && Math.abs(n.y - y) < 5) {
+      // already overlapping someone? let the player step away, never closer
+      const inside = Math.abs(n.x - self.x) < 10 && Math.abs(n.y - self.y) < 5;
+      if (!inside || Math.hypot(n.x - x, n.y - y) <= Math.hypot(n.x - self.x, n.y - self.y)) return true;
+    }
+    return false;
+  },
+  moveEnt(e, dx, dy) {
+    let moved = false;
+    if (dx && !this.boxBlocked(e.x + dx, e.y, e)) { e.x += dx; moved = true; }
+    if (dy && !this.boxBlocked(e.x, e.y + dy, e)) { e.y += dy; moved = true; }
+    return moved;
+  },
+  updatePlayer() {
+    const P = this.P, I = Input.held;
+    if (P.stun > 0) { P.stun--; P.moving = false; P.frame = 0; return; }
+    let dx = (I.right ? 1 : 0) - (I.left ? 1 : 0), dy = (I.down ? 1 : 0) - (I.up ? 1 : 0);
+    P.running = !!I.b && (dx || dy);
+    const sp = P.running ? (hasAbility('swift') ? 1.8 : 1.5) : 0.85;
+    if (dx && dy) { dx *= 0.75; dy *= 0.75; }
+    if (dx || dy) {
+      if (dx && !dy) P.dir = dx > 0 ? 'right' : 'left';
+      else if (dy && !dx) P.dir = dy > 0 ? 'down' : 'up';
+      else { const h = dx > 0 ? 'right' : 'left', v = dy > 0 ? 'down' : 'up'; if (P.dir !== h && P.dir !== v) P.dir = Input.lastAxis === 'x' ? h : v; }
+      const ox = P.x, oy = P.y;
+      this.moveEnt(P, dx * sp, dy * sp);
+      if (this.cfg.clamp) this.cfg.clamp(P, ox, oy);
+      P.moving = P.x !== ox || P.y !== oy;
+      if (P.moving) { this.trail.push({ x: P.x, y: P.y }); if (this.trail.length > 600) this.trail.shift(); }
+    } else P.moving = false;
+    if (P.moving) { P.anim += sp; if (++this.stepT % (P.running ? 12 : 18) === 0) Sound.sfx('step'); }
+    P.frame = P.moving ? 1 + ((P.anim / 8 | 0) % 2) : 0;
+  },
+  updateFollower() {
+    const F = this.follower, P = this.P; if (!F || F.frozen) return;
+    let moved = false, budget = 0.85;
+    while (budget > 0 && this.trail.length) {
+      const dP = Math.hypot(P.x - F.x, P.y - F.y);
+      if (dP < 15) break;
+      const t = this.trail[0]; const dx = t.x - F.x, dy = t.y - F.y, d = Math.hypot(dx, dy);
+      if (d <= budget) { F.x = t.x; F.y = t.y; budget -= d; this.trail.shift(); moved = d > 0 || moved; if (d > 0) F.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+      else { F.x += dx / d * budget; F.y += dy / d * budget; budget = 0; moved = true; F.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+    }
+    F.moving = moved; if (moved) F.anim += 0.85; F.frame = moved ? 1 + ((F.anim / 8 | 0) % 2) : 0;
+    if (!moved && Math.hypot(P.x - F.x, P.y - F.y) < 18) { const dx = P.x - F.x, dy = P.y - F.y; F.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+    // distance along the trail
+    let gap = 0, px = F.x, py = F.y; for (const t of this.trail) { gap += Math.hypot(t.x - px, t.y - py); px = t.x; py = t.y; }
+    gap += Math.hypot(P.x - px, P.y - py); this.gap = gap;
+  },
+  placeFollowerBehind(dist = 14) {
+    const F = this.follower, P = this.P; if (!F) return;
+    const v = DIRV[P.dir]; F.x = P.x - v[0] * dist; F.y = P.y - v[1] * dist;
+    if (this.boxBlocked(F.x, F.y)) { F.x = P.x; F.y = P.y; }
+    F.dir = P.dir; this.trail = []; this.gap = 0;
+  },
+  updateNPC(n) {
+    if (n.hidden) return;
+    n.moving = false;
+    if (n.chase && n.alert > 0 && !this.caughtBusy) {
+      const P = this.P, dx = P.x - n.x, dy = P.y - n.y, d = Math.hypot(dx, dy);
+      if (d > 4) { const sp = n.chaseSpeed || 0.7; const ox = n.x, oy = n.y; n.x += dx / d * sp; n.y += dy / d * sp; if (this.map.solidAt(n.x, n.y)) { n.x = ox; n.y = oy; } n.moving = true; n.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+      n.anim += 0.7; n.frame = 1 + ((n.anim / 8 | 0) % 2); return;
+    }
+    if (n.path && n.path.length > 1) {
+      if (n.pause > 0) {
+        n.pause--;
+        if (n.lookAround && n.pause % 50 === 25) { const ds = ['left', 'up', 'right', 'down']; n.dir = ds[(ds.indexOf(n.dir) + 1 + (n.pause & 1)) % 4]; }
+      } else {
+        const t = n.path[n.pi]; const dx = t[0] - n.x, dy = t[1] - n.y, d = Math.hypot(dx, dy);
+        if (d <= n.speed) { n.x = t[0]; n.y = t[1]; n.pi = (n.pi + 1) % n.path.length; n.pause = t[2] ?? 40; if (t[3]) n.dir = t[3]; }
+        else { n.x += dx / d * n.speed; n.y += dy / d * n.speed; n.moving = true; n.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+      }
+    } else if (n.looks) {
+      if (++n.lookT >= n.looks[n.li][1]) { n.lookT = 0; n.li = (n.li + 1) % n.looks.length; }
+      n.dir = n.looks[n.li][0];
+    }
+    if (n.moving) n.anim += n.speed;
+    n.frame = n.moving ? 1 + ((n.anim / 8 | 0) % 2) : 0;
+  },
+  /* sight cones: a table of free distances per ray */
+  coneRays(n) {
+    const c = n.cone, N = 36, base = Math.atan2(DIRV[n.dir][1], DIRV[n.dir][0]);
+    const ex = n.x, ey = n.y - 8; const rays = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const a = base - c.half + (2 * c.half) * (i / (N - 1)); const ca = Math.cos(a), sa = Math.sin(a);
+      let d = 4; while (d < c.len && !this.map.opaqueAt(ex + ca * d, ey + sa * d)) d += 2;
+      rays[i] = d;
+    }
+    n.rays = rays; n.base = base; n.ex = ex; n.ey = ey;
+  },
+  inCone(n, tx, ty) {
+    if (!n.rays) return false;
+    const dx = tx - n.ex, dy = ty - n.ey, d = Math.hypot(dx, dy);
+    if (d > n.cone.len) return false;
+    if (d < 7) return true;
+    let a = Math.atan2(dy, dx) - n.base; while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI;
+    if (Math.abs(a) > n.cone.half) return false;
+    const idx = Math.round((a + n.cone.half) / (2 * n.cone.half) * (n.rays.length - 1));
+    return d <= n.rays[idx];
+  },
+  watch() {
+    const P = this.P, F = this.follower;
+    for (const n of this.npcs) {
+      if (!n.cone || n.hidden) continue;
+      this.coneRays(n);
+      const seeP = this.inCone(n, P.x, P.y - 6) || this.inCone(n, P.x, P.y - 1);
+      const seeF = F && !F.hidden && (this.inCone(n, F.x, F.y - 6));
+      const strict = n.kind === 'lookout' || n.kind === 'searcher' || this.cfg.strictGuards;
+      const susp = strict ? (seeP || seeF) : (seeP && (P.running || P.listening));
+      n.seen = seeP && !susp;
+      if (susp) { if (n.alert === 0) Sound.sfx('alert'); n.alert += hasAbility('quiet') ? 0.7 : 1; } else n.alert = Math.max(0, n.alert - 0.6);
+      if (n.alert >= (n.kind === 'guard' ? 26 : 22) && !this.caughtBusy) this.caught(n);
+    }
+  },
+  async caught(n) {
+    const gen = this.gen; this.caughtBusy = true; this.lock++;
+    Sound.sfx('caught'); G.shake = 22; n.alert = 99;
+    const dx = this.P.x - n.x, dy = this.P.y - n.y; n.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    await wait(30);
+    try { if (this.cfg.onCaught) await this.cfg.onCaught(n); }
+    finally { if (this.gen === gen) { this.lock--; this.caughtBusy = false; } }
+  },
+  updateGroups() {
+    const P = this.P; P.listening = false;
+    for (const g of this.groups) {
+      if (g.learned) continue;
+      const d = Math.hypot(P.x - g.x, P.y - g.y);
+      if (d < g.r) { P.listening = true; g.progress = Math.min(1, g.progress + 1 / 170); }
+      else g.progress = Math.max(0, g.progress - 1 / 400);
+      if (g.progress >= 1 && !this.caughtBusy) { g.learned = true; this.runScript(g.onLearn); }
+    }
+  },
+  async runScript(fn) { const gen = this.gen; this.lock++; try { await fn(); } finally { if (this.gen === gen) this.lock--; } },
+  updateTriggers() {
+    const P = this.P;
+    for (const t of this.triggers) {
+      if (t.done || (t.when && !t.when())) continue;
+      if (P.x >= t.x && P.x < t.x + t.w && P.y >= t.y && P.y < t.y + t.h) { if (t.once !== false) t.done = true; this.runScript(t.fn); break; }
+    }
+  },
+  update() {
+    const busy = this.lock > 0 || UI.dlg || UI.choice;
+    if (!busy) {
+      UI.bFree = false;
+      if (Input.pressed.start && UI.notebookAllowed) { UI.notebook = true; Sound.sfx('page'); return; }
+      const it = this.nearInteract();
+      if (it && Input.pressed.a) { this.runScript(it.fn); return; }
+      this.updatePlayer();
+    } else if (!this.P.scripted) { this.P.moving = false; this.P.frame = 0; this.P.running = false; }
+    if (!busy || this.cfg.liveDuringScripts) for (const n of this.npcs) this.updateNPC(n);
+    if (!busy || this.followerLive) this.updateFollower();
+    if (!busy) { this.updateGroups(); this.watch(); if (this.cfg.tick) this.cfg.tick(); this.updateTriggers(); this.updateFrags(); }
+    else for (const n of this.npcs) if (n.cone && !n.hidden) this.coneRays(n);
+    this.followCam();
+  },
+  updateFrags() {
+    const P = this.P;
+    for (const f of this.frags || []) if (!f.got && Math.hypot(P.x - f.x, P.y - f.y) < 10) { f.got = true; this.runScript(() => collectFrag(f.id)); break; }
+  },
+  nearInteract() {
+    const P = this.P; if (!this.cfg.interacts) return null;
+    let best = null, bd = 1e9;
+    for (const it of this.cfg.interacts) { const d = Math.hypot(P.x - it.x, P.y - it.y); if ((!it.when || it.when()) && d < (it.r || 16) && d < bd) { best = it; bd = d; } }
+    return best;
+  },
+  snapCam() { this.followCam(true); },
+  followCam() {
+    if (this.camLock) { this.cam.x = Math.round(this.camLock.x); this.cam.y = Math.round(this.camLock.y); return; }
+    const P = this.P, m = this.map;
+    const tx = Math.max(0, Math.min(m.pw - W, Math.round(P.x - 80))), ty = Math.max(0, Math.min(m.ph - H, Math.round(P.y - 80)));
+    this.cam.x = tx; this.cam.y = ty;
+  },
+  draw() {
+    const m = this.map, cx = this.cam.x, cy = this.cam.y;
+    const tx0 = Math.floor(cx / 8), ty0 = Math.floor(cy / 8);
+    for (let ty = ty0; ty <= ty0 + 18; ty++) for (let tx = tx0; tx <= tx0 + 20; tx++) { const t = m.tile(tx, ty); if (t.overlay) blit(m.under(tx, ty).bmp, 8, 8, tx * 8 - cx, ty * 8 - cy); blit(t.bmp, 8, 8, tx * 8 - cx, ty * 8 - cy); }
+    if (G.lighting === 'night') this.drawLights();
+    // lookout and searcher gaze: dotted cones
+    for (const n of this.npcs) if (n.cone && n.rays && !n.hidden && n.kind !== 'guard') this.fillCone(n, (sx, sy) => { if (((sx + sy) & 3) === 0 && (sy & 1) === 0) { const k = sy * W + sx; fb[k] = n.alert > 0 && (G.frame & 4) ? addColor('#c2453a') : addColor(G.lighting === 'day' ? '#b4532c' : '#ffe9a0'); if (!litMask[k]) litMask[k] = 1; } });
+    // plate fragments glow even in the dark
+    for (const f of this.frags || []) if (!f.got) { litDraw = 2; drawPlate(Math.round(f.x - cx) - 3, Math.round(f.y - cy) - 9 + ((G.frame >> 4) % 2)); litDraw = 0; }
+    // characters, sorted by feet y
+    const list = this.npcs.filter(n => !n.hidden); if (!this.P.hidden) list.push(this.P); if (this.follower && !this.follower.hidden) list.push(this.follower);
+    list.sort((a, b) => a.y - b.y);
+    for (const e of list) {
+      if (e.x < cx - 20 || e.x > cx + W + 20 || e.y < cy - 4 || e.y > cy + H + 20) continue;
+      litDraw = 1; drawChar(e.spr, e.lying ? 'lying' : e.dir, e.frame, e.x - cx, e.y - cy); litDraw = 0;
+      if (e.kind === 'guard') { // spear and torch
+        const sx = Math.round(e.x - cx) + (e.dir === 'left' ? -7 : 6), sy = Math.round(e.y - cy);
+        rect(sx, sy - 20, 1, 19, 3); pset(sx, sy - 21, 0); pset(sx - 1, sy - 20, 0); pset(sx + 1, sy - 20, 0);
+      }
+    }
+    // bubbles
+    for (const e of list) {
+      const bx = Math.round(e.x - cx) - 4, by = Math.round(e.y - cy) - 26;
+      if (e.alert > 0) { if (e.alert > 20 || (G.frame & 4)) blit(BUBBLES.alert, 8, 8, bx, by); }
+      else if (e.seen) blit(BUBBLES.ask, 8, 8, bx, by);
+      else if (e.talking && (G.frame >> 5) % 2 === 0) blit(BUBBLES.talk, 8, 8, bx + 5, by + 2);
+    }
+  },
+  fillCone(n, fn) {
+    const cx = this.cam.x, cy = this.cam.y, L = n.cone.len;
+    const x0 = Math.max(0, Math.floor(n.ex - L - cx)), x1 = Math.min(W - 1, Math.ceil(n.ex + L - cx));
+    const y0 = Math.max(0, Math.floor(n.ey - L - cy)), y1 = Math.min(H - 1, Math.ceil(n.ey + L - cy));
+    for (let sy = y0; sy <= y1; sy++) for (let sx = x0; sx <= x1; sx++) if (this.inCone(n, sx + cx, sy + cy)) fn(sx, sy);
+  },
+  lightCircle(x, y, r) {
+    const cx = this.cam.x, cy = this.cam.y; x -= cx; y -= cy;
+    if (x < -r || y < -r || x > W + r || y > H + r) return;
+    const r2 = r * r, ri2 = (r - 3) * (r - 3);
+    for (let sy = Math.max(0, Math.floor(y - r)); sy <= Math.min(H - 1, Math.ceil(y + r)); sy++)
+      for (let sx = Math.max(0, Math.floor(x - r)); sx <= Math.min(W - 1, Math.ceil(x + r)); sx++) {
+        const d2 = (sx - x) * (sx - x) + (sy - y) * (sy - y);
+        if (d2 < ri2 || (d2 < r2 && ((sx + sy) & 1) === 0)) { const k = sy * W + sx; if (!litMask[k]) litMask[k] = 1; }
+      }
+  },
+  drawLights() {
+    const fade = 1 - G.dawn;
+    if (fade <= 0.05) return;
+    for (const L of this.map.lights) {
+      const fl = Math.sin(G.frame * 0.13 + L.seed) * 1.2 + Math.sin(G.frame * 0.31 + L.seed * 2) * 0.8 + ((G.frame + L.seed) % 37 === 0 ? -2 : 0);
+      this.lightCircle(L.x, L.y + (L.small ? 0 : 6), (L.r + (L.small ? fl * 0.3 : fl)) * (L.small ? 1 : Math.max(0.3, fade)));
+    }
+    for (const n of this.npcs) if (n.kind === 'guard' && !n.hidden) {
+      this.lightCircle(n.x, n.y - 6, 12 + Math.sin(G.frame * 0.2 + n.x) * 1);
+      if (n.rays) this.fillCone(n, (sx, sy) => { const k = sy * W + sx; if (!litMask[k]) litMask[k] = 1; });
+    }
+    if (this.extraLights) for (const L of this.extraLights) this.lightCircle(L.x, L.y, L.r);
+  },
+  drawArrow() {
+    const it = this.nearInteract();
+    if (it && (G.frame >> 4) % 4) { const bx = Math.round(this.P.x - this.cam.x) - 5, by = Math.round(this.P.y - this.cam.y) - 30; frame(bx, by, 11, 11); text('A', bx + 3, by + 2, 3); return; }
+    const t = this.cfg.target && this.cfg.target(); if (!t) return;
+    const sx = t.x - this.cam.x, sy = t.y - this.cam.y;
+    if (sx > 8 && sx < W - 8 && sy > 16 && sy < H - 8) {
+      if ((G.frame >> 4) % 2) { const bob = (G.frame >> 3) % 2; icon('down', Math.round(sx) - 2, Math.round(sy) - 30 + bob, 0); }
+      return;
+    }
+    const cx = 80, cy = 76, dx = sx - cx, dy = sy - cy;
+    const k = Math.min((W / 2 - 10) / Math.max(1, Math.abs(dx)), (H / 2 - 16) / Math.max(1, Math.abs(dy)));
+    const ax = Math.round(cx + dx * k), ay = Math.round(cy + dy * k);
+    const ang = Math.atan2(dy, dx);
+    if ((G.frame >> 3) % 3 === 0) return;
+    for (let i = 0; i < 6; i++) for (let j = -i; j <= i; j++) {
+      const lx = 5 - i, ly = j * 0.6;
+      const px = ax + Math.cos(ang) * lx - Math.sin(ang) * ly, py = ay + Math.sin(ang) * lx + Math.cos(ang) * ly;
+      pset(Math.round(px), Math.round(py), 3);
+    }
+    pset(ax, ay, 0);
+  },
+};
+
+/* ================= SAVE ================= */
+const SAVE_KEY = 'servant-of-helaman-v1';
+function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (_) { return null; } }
+function writeSave(data) { try { const cur = loadSave() || {}; localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign(cur, data))); } catch (_) {} }
+
+/* ================= PROGRESS: chapters done, plate fragments, faith ================= */
+const PROG_KEY = 'bom-adventure-progress-v1';
+const PROG = (() => { try { const p = JSON.parse(localStorage.getItem(PROG_KEY)); if (p) return Object.assign({ done: {}, frags: {} }, p); } catch (_) {} return { done: {}, frags: {} }; })();
+function saveProg() { try { localStorage.setItem(PROG_KEY, JSON.stringify(PROG)); } catch (_) {} }
+function faith() { return Object.keys(PROG.done).length * 3 + Object.keys(PROG.frags).length; }
+const ABILITIES = [
+  { id: 'swift', name: 'SWIFT FEET', need: 4, desc: 'YOU RUN FASTER.' },
+  { id: 'quiet', name: 'QUIET STEP', need: 9, desc: 'WATCHERS NOTICE YOU MORE SLOWLY.' },
+  { id: 'steadfast', name: 'STEADFAST', need: 15, desc: 'MORE COURAGE, LIGHTER BLOWS.' },
+];
+function hasAbility(id) { const a = ABILITIES.find(a => a.id === id); return !!a && faith() >= a.need; }
+
+/* ================= STORY DATA ================= */
+const SIGNS = [
+  { note: ['Sign: he draws his hand', 'across his brow.', 'Answer: draw your hand', 'across your lips.'] },
+  { note: ['He asks: “Who walks in', 'the night?”', 'Answer: “One who keeps', 'the oath.”'] },
+  { note: ['He asks: “What does the', 'moon see?”', 'Answer: “The moon sees', 'nothing.”'] },
+];
+const State = { scene: 1, signs: [false, false, false], checkpoint: null, suspicion: 0, helpSeen: false };
+
+/* ================= SCRIPTED MOVEMENT ================= */
+const movers = [];
+function walkTo(e, x, y, speed = 0.7) {
+  return new Promise(res => { for (let i = movers.length - 1; i >= 0; i--) if (movers[i].e === e) movers.splice(i, 1); e.scripted = true; movers.push({ e, x, y, speed, res }); });
+}
+function stepMovers() {
+  for (let i = movers.length - 1; i >= 0; i--) {
+    const m = movers[i], e = m.e; const dx = m.x - e.x, dy = m.y - e.y, d = Math.hypot(dx, dy);
+    if (d <= m.speed) { e.x = m.x; e.y = m.y; e.moving = false; e.frame = 0; e.scripted = false; movers.splice(i, 1); m.res(); continue; }
+    e.x += dx / d * m.speed; e.y += dy / d * m.speed; e.moving = true; e.anim += m.speed;
+    e.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    e.frame = 1 + ((e.anim / 8 | 0) % 2);
+  }
+}
+function face(e, target) { const dx = target.x - e.x, dy = target.y - e.y; e.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ================= MODES ================= */
+let mode = null;
+function setMode(m) { mode = m; }
+
+// a plain screen of centred text
+function cardMode(lines, opts = {}) {
+  return {
+    update() {}, draw() {
+      G.lighting = 'day'; fillScreen(opts.light ? 0 : 3);
+      const c = opts.light ? 3 : 0;
+      const total = lines.length * 11; let y = opts.y ?? ((H - total) / 2 | 0);
+      for (const raw of lines) {
+        const ln = typeof raw === 'string' ? { t: raw } : raw;
+        if (ln.big) { textCenter(ln.t, y, c, 2); y += 18; }
+        else { textCenter(ln.t, y, ln.dim ? (opts.light ? 2 : 1) : c); y += 11; }
+      }
+    },
+  };
+}
+function showCard(lines, opts = {}) {
+  return new Promise(res => {
+    const m = cardMode(lines, opts); let t = 0, done = false; const min = opts.min ?? 40;
+    m.update = () => {
+      t++; if (done) return;
+      if ((t > min && (Input.pressed.a || Input.pressed.start)) || (opts.auto && t > opts.auto)) { done = true; if (!opts.auto) Sound.sfx('next'); fadeOut().then(res); }
+    };
+    setMode(m); fadeIn();
+  });
+}
+async function sceneBanner(num, title) {
+  Sound.sfx('start');
+  await showCard([{ t: 'SCENE ' + num, dim: 1 }, '', { t: title, big: 1 }], { auto: 150, min: 40 });
+}
+
+/* ---------- title ---------- */
+const stars = Array.from({ length: 40 }, (_, i) => ({ x: (i * 53 + 17) % 160, y: (i * 29 + 5) % 56, p: i * 13 }));
+function drawSkyline(t, bright) {
+  G.lighting = 'night';
+  rect(0, 0, W, H, bright ? 0 : 3);
+  if (!bright) { rect(0, 64, W, 28, addColor('#3a2a52')); rect(0, 80, W, 12, addColor('#5a3a5e')); }
+  if (!bright) for (const s of stars) if (((t + s.p) >> 5) % 5) pset(s.x, s.y, ((t + s.p) >> 4) % 3 ? 1 : 0);
+  // moon
+  if (!bright) for (let y = -7; y <= 7; y++) for (let x = -7; x <= 7; x++) if (x * x + y * y <= 49 && (x - 3) * (x - 3) + (y + 1) * (y + 1) > 30) { pset(140 + x, 56 + y, 0); litMask[(56 + y) * W + 140 + x] = 2; }
+  // far wall and buildings
+  rect(0, 92, W, 52, 2);
+  const blds = [[0, 78, 22], [20, 84, 18], [36, 74, 20], [96, 76, 18], [112, 82, 24], [134, 72, 26]];
+  for (const [x, y, w] of blds) { rect(x, y, w, 100, 2); rect(x, y, w, 2, 1); }
+  // temple of the judgment seat
+  rect(56, 62, 40, 40, 1); rect(52, 58, 48, 5, 2); rect(60, 52, 32, 6, 2); rect(68, 46, 16, 6, 2);
+  for (let x = 58; x < 96; x += 6) rect(x, 66, 3, 30, 2);
+  rect(54, 96, 44, 3, 2); rect(50, 99, 52, 3, 1);
+  // windows with lamplight
+  const wins = [[6, 88], [14, 96], [26, 92], [42, 84], [50, 96], [102, 86], [118, 92], [140, 82], [150, 94], [130, 100]];
+  wins.forEach(([x, y], i) => { const on = ((t + i * 40) >> 6) % 7 !== 0; rect(x, y, 3, 4, on ? 0 : 3); if (on) for (let j = -2; j < 6; j++) for (let k = -2; k < 5; k++) { const yy = y + j, xx = x + k; if (xx >= 0 && xx < W && yy >= 0 && yy < H) litMask[yy * W + xx] = 1; } });
+  // ground and lanterns
+  rect(0, 112, W, 32, bright ? 1 : 3);
+  for (let x = 0; x < W; x += 8) pset(x + ((x >> 3) % 2) * 3, 118, 2);
+  for (const lx of [24, 136]) { rect(lx, 100, 1, 14, 2); const on = Math.sin(t * 0.15 + lx) > -0.8; rect(lx - 1, 97, 3, 3, on ? 0 : 1); for (let j = 96; j < 101; j++) for (let k = lx - 2; k < lx + 3; k++) litMask[j * W + k] = 1; }
+}
+function titleMode() {
+  const m = {
+    t: 0, busy: false,
+    update() {
+      this.t++;
+      if (this.busy) return;
+      if (Input.pressed.start || Input.pressed.a) { this.busy = true; Sound.sfx('start'); (async () => { await fadeOut(); await goMap(); })(); }
+    },
+    draw() {
+      drawSkyline(this.t);
+      litDraw = 2;
+      text('THE SERVANT', 15, 12, 3, 2); text('THE SERVANT', 14, 11, 0, 2);
+      text('OF HELAMAN', 21, 31, 3, 2); text('OF HELAMAN', 20, 30, 0, 2);
+      if ((this.t >> 5) % 2) { rect(42, 124, 76, 11, 3); textCenter('PRESS START', 126, 0); }
+      rect(0, 137, W, 7, 3); textCenter('A BOOK OF MORMON ADVENTURE', 137, 1);
+      litDraw = 0;
+    },
+  };
+  return m;
+}
+async function goTitle() {
+  G.dawn = 0; setDawn(0); State.scene = 1;
+  UI.notebookAllowed = false;
+  setMode(titleMode()); Sound.play(null);
+  await fadeIn();
+}
+
+/* ---------- how to play ---------- */
+async function howToPlay() {
+  const touch = document.body.classList.contains('touchmode');
+  const pages = [
+    [{ t: 'HOW TO PLAY', big: 1 }, '', touch ? 'D-PAD   MOVE' : 'ARROWS/WASD  MOVE', touch ? 'A   TALK, NEXT' : 'Z OR SPACE   A: NEXT', touch ? 'HOLD B   RUN' : 'HOLD X   B: RUN', 'HOLD B IN TALK  SKIM', touch ? 'START   NOTEBOOK' : 'ENTER   START: NOTEBOOK', touch ? '' : 'M   SOUND ON/OFF'],
+    [{ t: 'STAY HIDDEN', big: 1 }, '', 'GUARDS CARRY TORCHES.', 'THEIR LIGHT SHOWS', 'WHERE THEY LOOK.', '', 'BAND LOOKOUTS WATCH', 'FROM THE DARK. DOTS', 'SHOW THEIR GAZE.'],
+    [{ t: 'LISTEN', big: 1 }, '', 'STAND NEAR WHISPERING', 'BAND MEMBERS TO', 'OVERHEAR THEM.', '', 'GUARDS STOP ANYONE', 'THEY SEE RUNNING', 'OR EAVESDROPPING.'],
+  ];
+  for (const p of pages) await showCard(p.concat(['', { t: 'PRESS A', dim: 1 }]), { min: 30 });
+  State.helpSeen = true; writeSave({ helpSeen: true });
+}
+
+/* ---------- new game / continue ---------- */
+async function newGame() {
+  State.chapter = 1;
+  const prev = loadSave();
+  State.signs = [false, false, false]; State.checkpoint = null; State.suspicion = 0;
+  State.helpSeen = !!(prev && prev.helpSeen);
+  writeSave({ scene: 1, signs: State.signs, checkpoint: null, helpSeen: State.helpSeen });
+  if (!State.helpSeen) await howToPlay();
+  await intro();
+}
+async function continueGame(save) {
+  State.signs = save.signs || [false, false, false]; State.checkpoint = save.checkpoint || null; State.helpSeen = !!save.helpSeen;
+  const s = save.scene;
+  if (s >= 41) { State.chapter = 'sign'; State.signFound = save.signFound || [false, false, false, false]; State.signCp = save.signCp || null; if (s === 41) await signWarn(); else if (s === 42) await signPrayer(); else await signNight(); return; }
+  State.chapter = s >= 31 ? 'cj' : s >= 21 ? 3 : 1;
+  if (s >= 31) { State.cjNotes = !!save.cjNotes; if (s === 31) await cjTower(); else if (s === 32) await cjRun(); else if (s === 33) await cjPrison(); else if (s === 34) await cjAccuse(); else await cjHouse(); return; }
+  if (s >= 21) { if (s === 21) await ch2Outside(); else if (s === 22) await ch2Wall(); else await ch2Escape(); return; }
+  if (s <= 2) await scene2(true); else if (s === 3) await scene3(); else if (s === 4) await scene4(); else if (s === 5) await scene5(); else await scene5Escape();
+}
+
+/* ---------- scene 1: opening ---------- */
+const CITY = buildCity();
+async function intro() {
+  Sound.play('night');
+  Field.setup(CITY, { start: [256, 120], npcs: [] });
+  Field.P.hidden = true; G.lighting = 'night';
+  const pan = { x: 256, y: 120 };
+  setMode({ update() { pan.y = Math.min(300, pan.y + 0.25); Field.P.x = pan.x; Field.P.y = pan.y; Field.followCam(); }, draw() { G.lighting = 'night'; Field.draw(); } });
+  cinema(true);
+  await fadeIn(6);
+  await sayAll([
+    'The fortieth year of the judges. Zarahemla quarrels over the judgment-seat.',
+    'Pahoran, the chief judge, was murdered upon the judgment-seat by a man named Kishkumen.',
+    'Now Gadianton leads them. Put him in the judgment-seat, he promises, and they shall have power.',
+    'Helaman, son of Helaman, has been chosen chief judge by the voice of the people.',
+    'And Kishkumen lies in wait to destroy him also.',
+    'You are a servant of Helaman. Tonight you go out in disguise, to learn the plans of the band.',
+  ]);
+  await fadeOut(false, 6);
+  cinema(false); G.bars = 0;
+  await scene2(false);
+}
+
+/* ---------- scene 2: learn the signs ---------- */
+const T = n => n * 8;          // tile to pixel
+function makeGuard(x, y, path, o = {}) { return ent(Object.assign({ x, y, kind: 'guard', spr: SPR.guard, path, speed: 0.45, cone: { len: 52, half: 0.5 }, lookAround: true }, o)); }
+function makeLookout(x, y, looks, o = {}) { return ent(Object.assign({ x, y, kind: 'lookout', spr: SPR.lookout, looks, dir: looks[0][0], cone: { len: 58, half: 0.55 }, solid: true }, o)); }
+function makeBand(x, y, dir, o = {}) { return ent(Object.assign({ x, y, dir, kind: 'band', spr: SPR.band, solid: true, talking: true }, o)); }
+const CHECKPOINTS2 = { start: [52, 340, 'down'], g0: [196, 206, 'left'], g1: [252, 300, 'right'], g2: [420, 120, 'right'] };
+
+async function scene2(fromContinue) {
+  State.scene = 2;
+  await sceneBanner(2, 'THE SIGNS');
+  writeSave({ scene: 2, signs: State.signs, checkpoint: State.checkpoint });
+  UI.notebookAllowed = true;
+  const bandA = [makeBand(T(20) + 4, T(25) + 6, 'right'), makeBand(T(21) + 12, T(25) + 6, 'left')];
+  const bandB = [makeBand(T(35) + 6, T(37) + 4, 'down'), makeBand(T(35) + 6, T(38) + 12, 'up')];
+  const bandC = [makeBand(T(57) + 4, T(12) + 4, 'right'), makeBand(T(58) + 12, T(12) + 4, 'left')];
+  const npcs = [
+    ...bandA, ...bandB, ...bandC,
+    makeLookout(T(21), T(29) + 4, [['down', 160], ['up', 110], ['right', 70]]),
+    makeGuard(T(6), T(20) + 4, [[T(6), T(20) + 4, 60, 'right'], [T(30), T(20) + 4, 50], [T(58), T(20) + 4, 60, 'left'], [T(30), T(20) + 4, 50]]),
+    makeGuard(T(28) + 4, T(36), [[T(28) + 4, T(36), 40], [T(38) + 4, T(36), 40], [T(38) + 4, T(44) + 4, 40], [T(28) + 4, T(44) + 4, 40]], { speed: 0.4 }),
+    makeLookout(T(54), T(15) + 4, [['right', 140], ['up', 100]]),
+    makeGuard(T(52), T(11), [[T(52), T(11), 60, 'down'], [T(52), T(17), 60, 'up']], { speed: 0.35 }),
+    makeGuard(T(14), T(32), [[T(14), T(32), 50], [T(40), T(32), 50]], { speed: 0.45 }),
+  ];
+  const sign = i => async () => {
+    const lines = [
+      [['BAND MEMBER', 'If a stranger gives you a sign in the dark, how will you know he is one of us?'], ['BAND MEMBER', 'He draws his hand across his brow.'], ['BAND MEMBER', 'And you answer by drawing your hand across your lips. Our secret stays shut.']],
+      [['BAND MEMBER', 'Kishkumen goes out tonight. If he meets you, he will ask: “Who walks in the night?”'], ['BAND MEMBER', 'And I say: “One who keeps the oath.”'], ['BAND MEMBER', 'Say it well. He trusts no one who stumbles.']],
+      [['BAND MEMBER', 'The last word, then. He will say: “What does the moon see?”'], ['BAND MEMBER', 'Answer: “The moon sees nothing.”'], ['BAND MEMBER', 'Gadianton chose it himself. No one sees what we do.']],
+    ][i];
+    await sayAll(lines);
+    State.signs[i] = true; Sound.sfx('learn');
+    const n = State.signs.filter(Boolean).length;
+    await say(`You learned a sign. (${n} of 3)\nStart opens your notebook.`);
+    State.checkpoint = 'g' + i;
+    writeSave({ scene: 2, signs: State.signs, checkpoint: State.checkpoint });
+    if (n === 3) { Sound.sfx('jingle'); await say('All three signs learned! Wait for Kishkumen in the dark street east of the market.'); }
+  };
+  const groups = [bandA, bandB, bandC].map((b, i) => ({ x: (b[0].x + b[1].x) / 2, y: (b[0].y + b[1].y) / 2, r: 30, progress: 0, learned: State.signs[i], members: b, onLearn: sign(i) }));
+  groups.forEach(g => { if (g.learned) g.members.forEach(m => m.talking = false); });
+  const cp = CHECKPOINTS2[State.checkpoint] || CHECKPOINTS2.start;
+  const cfg = {
+    start: [cp[0], cp[1]], startDir: cp[2], npcs, groups, frags: ['sv1', 'sv2'],
+    target() {
+      const left = groups.filter(g => !g.learned);
+      if (!left.length) return { x: T(52), y: T(38) };
+      const P = Field.P; left.sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y));
+      return { x: left[0].x, y: left[0].y };
+    },
+    tick() { groups.forEach(g => { if (g.learned) g.members.forEach(m => m.talking = false); }); },
+    triggers: [{ x: T(50), y: T(35), w: T(4), h: T(6), once: false, when: () => State.signs.every(Boolean), fn: async () => { Field.triggers[0].done = true; await fadeOut(); await scene3(); } }],
+    async onCaught(n) {
+      const g = n.kind === 'guard';
+      await say(g ? 'GUARD: You there! Why do you creep about in the dark? Off with you!' : 'A lookout of the band spots you. He whistles, and the band melts into the shadows.');
+      await say('You slip away and try again.');
+      await fadeOut();
+      const c = CHECKPOINTS2[State.checkpoint] || CHECKPOINTS2.start;
+      Field.P.x = c[0]; Field.P.y = c[1]; Field.P.dir = c[2]; Field.resetNPCs(); groups.forEach(gr => { gr.progress = 0; }); Field.snapCam();
+      for (const m of npcs) if (m.kind === 'band') m.talking = !groups.find(gr => gr.members.includes(m)).learned;
+      await fadeIn();
+    },
+    hud() {
+      const n = State.signs.filter(Boolean).length;
+      frame(0, 0, 64, 13); text('SIGNS ' + n + '/3', 5, 3, 3);
+      const g = groups.find(g => !g.learned && g.progress > 0);
+      if (g) { frame(84, 0, 76, 13); blit(BUBBLES.ear, 8, 8, 87, 3); rect(98, 4, 56, 5, 3); rect(99, 5, Math.round(54 * g.progress), 3, 0); }
+    },
+  };
+  Field.setup(CITY, cfg);
+  setMode(fieldMode());
+  Sound.play('night');
+  await fadeIn();
+  if (!fromContinue || !State.signs.some(Boolean)) {
+    if (!State.signs.some(Boolean)) await sayAll([
+      'You step out of Helaman’s house, dressed like one of the band.',
+      'The band whispers in three places tonight. Sneak close and listen.',
+      'The arrow points the way. Learn all three signs.',
+    ]);
+  }
+}
+function fieldMode() {
+  return {
+    update() { Field.update(); },
+    draw() { G.lighting = Field.cfg.lighting || 'night'; Field.draw(); },
+    hud() { if (!UI.dlg && !UI.choice && Field.lock === 0) Field.drawArrow(); if (Field.cfg.hud) Field.cfg.hud(); },
+  };
+}
+
+/* ---------- scene 3: the meeting ---------- */
+function suspicionHud(val) {
+  frame(0, 0, 160, 13); text('SUSPICION', 5, 3, 3);
+  rect(64, 3, 90, 7, 3); rect(65, 4, 88, 5, 0);
+  const w = Math.round(88 * Math.min(100, val) / 100); rect(65, 4, w, 5, val > 66 && (G.frame & 8) ? 3 : 2);
+}
+async function scene3() {
+  State.scene = 3; UI.notebookAllowed = true;
+  await sceneBanner(3, 'THE MEETING');
+  writeSave({ scene: 3, signs: [true, true, true] }); State.signs = [true, true, true];
+  let sus = 0;
+  const K = ent({ x: T(52), y: T(31), dir: 'down', spr: SPR.kish, kind: 'kish' });
+  Field.setup(CITY, { start: [T(52), T(39)], startDir: 'up', npcs: [K], hud: () => suspicionHud(sus) });
+  setMode(fieldMode());
+  Field.lock++;
+  Sound.play('night');
+  await fadeIn();
+  await say('You wait in the dark street. Footsteps. A man in a dark cloak comes toward you.');
+  await walkTo(K, T(52), T(37), 0.5); face(K, Field.P);
+  await say('It is Kishkumen.');
+  const ask = async (lead, opts, correct, costs, title) => {
+    if (lead) await say(lead[1], lead[0]);
+    const order = shuffle(opts.map((o, i) => i));
+    const pick = order[await choose(order.map(i => opts[i]), { title: title || (lead && lead[1]) })];
+    if (pick === correct) { Sound.sfx('right'); sus = Math.max(0, sus - 5); return true; }
+    Sound.sfx('wrong'); G.shake = 10; sus += costs[pick] ?? 40; return false;
+  };
+  const fail = async () => {
+    await say('Kishkumen’s hand moves to his blade.', null);
+    await say('You are no brother of ours.', 'KISHKUMEN');
+    await say('You flee into the dark before he can strike. You must try the meeting again.');
+    await fadeOut(); await scene3();
+  };
+  const rounds = [
+    async () => { await say('Kishkumen draws his hand slowly across his brow, and waits.'); return ask(null, ['Draw your hand across your lips.', 'Draw your hand across your brow.', 'Touch your left shoulder.', 'Bow your head and say nothing.'], 0, [0, 40, 40, 40], 'His hand across his brow.'); },
+    async () => ask(['KISHKUMEN', 'Who walks in the night?'], ['“One who keeps the oath.”', '“One who keeps the law.”', '“A servant of the chief judge.”', '“The moon walks alone.”'], 0, [0, 40, 60, 40]),
+    async () => ask(['KISHKUMEN', 'What does the moon see?'], ['“The moon sees nothing.”', '“The moon sees all.”', '“Only the stars.”', '“The oath is kept.”'], 0, [0, 40, 40, 30]),
+    async () => ask(['KISHKUMEN', 'And why are you abroad this night, brother?'], ['“I watch the chief judge’s house for the band.”', '“I serve Helaman.”', '“I could not sleep.”'], 0, [0, 70, 25]),
+  ];
+  for (const r of rounds) {
+    const ok = await r();
+    if (!ok) {
+      if (sus >= 100) { await fail(); return; }
+      await say(sus > 60 ? 'Kishkumen’s eyes narrow. He is close to doubting you.' : 'Kishkumen frowns. That was not the answer he expected.');
+      // he tests again with the same sign
+      const again = await r();
+      if (!again && sus >= 100) { await fail(); return; }
+      if (!again) { await say('He watches you a long moment, then lets it pass.'); }
+    } else await say('Kishkumen nods.');
+  }
+  await sayAll([
+    ['KISHKUMEN', 'Good. You are one of us.'],
+    ['KISHKUMEN', 'Tonight I go to the judgment-seat. Helaman shall fall, as Pahoran fell.'],
+    ['KISHKUMEN', 'Lead me there by a quiet way. Gadianton will remember you when he sits in the seat.'],
+    'Now the servant knew all the heart of Kishkumen: it was the plan of the whole band to murder, and to rob, and to gain power.',
+  ]);
+  for (;;) {
+    const c = await choose(['“Let us go forth unto the judgment-seat.”', '“Not tonight. It is too dangerous.”']);
+    if (c === 0) break;
+    sus += 30; Sound.sfx('wrong'); G.shake = 8;
+    if (sus >= 100) { await fail(); return; }
+    await say('Coward! Lead me, or I will know the reason why.', 'KISHKUMEN');
+  }
+  await say('This did please Kishkumen exceedingly.');
+  Sound.sfx('jingle');
+  await fadeOut();
+  Field.lock = 0;
+  await scene4();
+}
+
+/* ---------- scene 4: the walk ---------- */
+async function scene4() {
+  State.scene = 4; UI.notebookAllowed = true;
+  await sceneBanner(4, 'THE WALK');
+  writeSave({ scene: 4, signs: [true, true, true] });
+  let sus = 0, warnCool = 0, checkpoint = [T(52), T(37), 'up'];
+  const npcs = [
+    makeGuard(T(52), T(22), [[T(52), T(22), 70, 'down'], [T(52), T(28), 90, 'down'], [T(52), T(22), 60, 'up']], { speed: 0.4, lookAround: false }),
+    makeGuard(T(24), T(32), [[T(24), T(32), 50], [T(40), T(32), 50]], { speed: 0.5, lookAround: false }),
+    makeGuard(T(30), T(24) + 4, [[T(28), T(24) + 4, 60, 'down'], [T(35), T(24) + 4, 60, 'down']], { speed: 0.35 }),
+    makeGuard(T(4), T(20) + 4, [[T(4), T(20) + 4, 40, 'right'], [T(20), T(20) + 4, 80]], { speed: 0.5, lookAround: false }),
+    makeGuard(T(58), T(20) + 4, [[T(58), T(20) + 4, 60, 'left'], [T(44), T(20) + 4, 80]], { speed: 0.5, lookAround: false }),
+    makeGuard(T(24), T(17), [[T(24), T(17), 90, 'right'], [T(26), T(12), 90, 'down']], { speed: 0.4, lookAround: false }),
+  ];
+  const exch = async (lead, opts, correct, costs, after) => {
+    await say(lead, 'KISHKUMEN');
+    const order = shuffle(opts.map((o, i) => i));
+    const pick = order[await choose(order.map(i => opts[i]), { title: lead })];
+    if (pick === correct) { Sound.sfx('right'); await say(after[0], 'KISHKUMEN'); }
+    else { Sound.sfx('wrong'); G.shake = 8; sus += costs[pick]; await say(after[1], 'KISHKUMEN'); }
+    checkpoint = [Field.P.x, Field.P.y, Field.P.dir];
+    if (sus >= 100) await failWalk();
+  };
+  const failWalk = async () => {
+    await say('Kishkumen stops in the street and studies you.');
+    await say('You are leading me into a trap. Stay out of my way, servant of no one.', 'KISHKUMEN');
+    await say('He slips into the dark. You must try the walk again.');
+    await fadeOut(); await scene4();
+    throw 'restart';
+  };
+  const cfg = {
+    start: [T(52), T(37)], startDir: 'up', follower: [T(52), T(39)], npcs, strictGuards: true,
+    target: () => ({ x: T(32), y: T(18) }),
+    hud: () => suspicionHud(sus),
+    tick() {
+      if (warnCool > 0) warnCool--;
+      if (Field.gap > 64) {
+        sus += 0.12;
+        if (warnCool === 0) { warnCool = 400; Field.runScript(async () => { await say('Not so fast! Do you mean to leave me behind?', 'KISHKUMEN'); }); }
+      }
+      if (sus >= 100) Field.runScript(failWalk).catch(() => {});
+    },
+    triggers: [
+      { x: T(42), y: T(30), w: T(12), h: T(4), fn: () => exch('This is not the road I know to the judgment-seat.', ['“The main road is watched. This way is quieter.”', '“I have lost my way.”', '“Helaman’s guards wait on the main road for you.”'], 0, [0, 20, 35], ['Hm. You know the city well.', 'Lost? Then why am I following you?']).catch(() => {}) },
+      { x: T(20), y: T(19), w: T(24), h: T(2), fn: () => exch('Tell me, is the chief judge well guarded tonight?', ['“Lightly. The people think the danger is past.”', '“Heavily. We should turn back.”', '“I do not know.”'], 0, [0, 35, 20], ['Then the night is ours.', 'You should have learned it, if you watch his house.']).catch(() => {}) },
+      { x: T(22), y: T(12), w: T(20), h: T(7), fn: () => exch('When Gadianton sits in the seat, what will you ask of him?', ['“Only a place among those in power.”', '“Nothing. I do this for Helaman.”', '“Gold, and plenty of it.”'], 0, [0, 60, 10], ['Spoken like one of us.', 'Strange words for a brother.']).catch(() => {}) },
+      { x: T(30), y: T(16), w: T(4), h: T(3), fn: async () => { Field.followerLive = false; await say('The colonnade of the judgment-seat lies ahead, dark between its lamps.'); await fadeOut(); await scene5(); } },
+    ],
+    async onCaught(n) {
+      await say('GUARD: Halt! Who goes there, two cloaked men at this hour?');
+      await say('Kishkumen pulls you back into the shadows before the guard can come near.');
+      await say('Fool! Keep us out of the torchlight.', 'KISHKUMEN');
+      sus += 25;
+      if (sus >= 100) { try { await failWalk(); } catch (_) {} return; }
+      await fadeOut();
+      Field.P.x = checkpoint[0]; Field.P.y = checkpoint[1]; Field.P.dir = checkpoint[2]; Field.resetNPCs(); Field.placeFollowerBehind(); Field.snapCam();
+      await fadeIn();
+    },
+  };
+  Field.setup(CITY, cfg);
+  Field.followerLive = false;
+  setMode(fieldMode());
+  Sound.play('night');
+  await fadeIn();
+  await say('Lead Kishkumen to the judgment-seat. Keep him close and out of the torchlight.');
+}
+
+/* ---------- scene 5: the turn ---------- */
+function litAt(x, y) { for (const L of CITY.lights) if (!L.small && Math.hypot(L.x - x, L.y + 6 - y) < L.r - 1) return true; return false; }
+async function scene5() {
+  State.scene = 5; UI.notebookAllowed = false;
+  await sceneBanner(5, 'THE TURN');
+  writeSave({ scene: 5, signs: [true, true, true] });
+  let acted = false, warned = 0;
+  const cfg = {
+    start: [T(31), T(19)], startDir: 'up', follower: [T(32) + 4, T(19) + 4], npcs: [],
+    clamp(P, ox, oy) {
+      if (P.x < T(30) + 5) P.x = T(30) + 5; if (P.x > T(34) - 5) P.x = T(34) - 5;
+      if (P.y < T(12) + 6) { P.y = T(12) + 6; if (!warned) { warned = 200; Field.runScript(() => say('Wait. The lamps by the steps would show you both to everyone.')); } }
+      if (P.y > T(19) + 4) { P.y = T(19) + 4; if (!warned) { warned = 200; Field.runScript(() => say('The judgment-seat is this way. Why do you turn back?', 'KISHKUMEN')); } }
+    },
+    tick() { if (warned) warned--; },
+    hud() {
+      const P = Field.P, F = Field.follower;
+      const dark = !litAt(P.x, P.y - 4) && !litAt(F.x, F.y - 4) && Math.hypot(P.x - F.x, P.y - F.y) < 26;
+      Field.canAct = dark && !acted;
+      frame(0, 0, 160, 13);
+      text(Field.canAct ? 'NOW. IN THE DARK.' : 'WALK INTO THE DARK.', 5, 3, 3);
+      if (Field.canAct) {
+        const bx = Math.round(P.x - Field.cam.x) - 5, by = Math.round(P.y - Field.cam.y) - 32;
+        if ((G.frame >> 3) % 3) { frame(bx, by, 11, 11); text('A', bx + 3, by + 2, 3); }
+        if (G.frame % 50 === 0) Sound.sfx('heart');
+      }
+    },
+  };
+  Field.setup(CITY, cfg);
+  setMode(Object.assign(fieldMode(), {
+    update() {
+      Field.update();
+      if (Field.canAct && !acted && Field.lock === 0 && !UI.dlg && !UI.choice && Input.pressed.a) { acted = true; Field.runScript(theTurn); }
+    },
+  }));
+  Field.lock++;
+  Sound.play('night');
+  await fadeIn();
+  await sayAll([
+    ['KISHKUMEN', 'Helaman trusts his guards and his walls. Soon he will trouble us no more.'],
+    'The servant knew all the heart of Kishkumen.',
+    'As they go forth toward the judgment-seat, wait until you are both in shadow. Then press A.',
+  ]);
+  Field.lock--;
+}
+async function theTurn() {
+  Sound.stopMusic();
+  const F = Field.follower;
+  face(Field.P, F); face(F, Field.P);
+  await wait(20);
+  Sound.sfx('strike');
+  await fadeTo(4, true, 1);
+  G.shake = 12;
+  F.lying = true; F.dir = 'down'; F.frozen = true;
+  await fadeTo(0, true, 2);
+  await wait(70);
+  G.fadeWhite = false; G.fade = 4;
+  await wait(50);
+  setMode(cardMode([]));
+  await fadeTo(0);
+  await say('As they were going forth unto the judgment-seat, the servant stopped Kishkumen. He fell without a groan.');
+  await say('Then the servant ran, to tell Helaman all that he had seen, and heard, and done.');
+  await fadeOut();
+  await scene5Escape();
+}
+async function scene5Escape() {
+  State.scene = 6; UI.notebookAllowed = false;
+  writeSave({ scene: 6, signs: [true, true, true] });
+  await showCard([{ t: 'SCENE 5', dim: 1 }, '', { t: 'THE ESCAPE', big: 1 }], { auto: 120, min: 30 });
+  let cp = [T(31), T(20) + 4, 'down'];
+  const startD = Math.hypot(T(31) - T(6), T(20) - T(41));
+  const srch = (x, y, path, o = {}) => ent(Object.assign({ x, y, kind: 'searcher', spr: SPR.lookout, path, speed: 0.45, cone: { len: 50, half: 0.5 }, lookAround: true }, o));
+  const npcs = [
+    srch(T(18), T(20) + 4, [[T(18), T(20) + 4, 60, 'left'], [T(9), T(20) + 4, 60, 'right']]),
+    srch(T(11), T(24), [[T(11), T(23), 70, 'down'], [T(11), T(29), 70, 'up']], { speed: 0.4 }),
+    srch(T(26), T(25) + 4, [[T(25), T(25) + 4, 60], [T(35), T(28) + 4, 60], [T(35), T(22), 60]], { speed: 0.4 }),
+    srch(T(14), T(32), [[T(13), T(32), 60, 'right'], [T(20), T(32), 60, 'left']], { speed: 0.35 }),
+    srch(T(11), T(38), [[T(11), T(36), 90, 'down'], [T(11), T(42), 90, 'up']], { speed: 0.3 }),
+    ent({ x: T(36), y: T(21), dir: 'down', kind: 'npc', spr: SPR.citizen, path: [[T(36), T(21), 120], [T(30), T(21), 120]], speed: 0.3, hidden: true, wake: 0.5 }),
+    ent({ x: T(44), y: T(31) + 4, dir: 'left', kind: 'npc', spr: SPR.citizen, path: [[T(44), T(31) + 4, 100], [T(48), T(32), 100]], speed: 0.3, hidden: true, wake: 0.35 }),
+  ];
+  let dawnHi = 0;
+  const cfg = {
+    start: [cp[0], cp[1]], startDir: 'down', npcs,
+    target: () => ({ x: T(6) + 4, y: T(41) + 4 }),
+    tick() {
+      const P = Field.P; const d = Math.hypot(P.x - T(6), P.y - T(41));
+      dawnHi = Math.max(dawnHi, Math.min(0.85, (1 - d / startD) * 0.9 + 0.1), Math.min(0.85, dawnHi + 0.00008));
+      setDawn(dawnHi);
+      for (const n of npcs) if (n.wake !== undefined) n.hidden = G.dawn < n.wake;
+      if (P.x < T(22) && P.y > T(30) && cp[0] > T(22)) { cp = [P.x, P.y, P.dir]; Field.runScript(() => say('The sky is turning grey. Helaman’s house is near.')); }
+    },
+    triggers: [{ x: T(4), y: T(40) + 4, w: T(5), h: T(2), fn: async () => { await fadeOut(); await ending(); } }],
+    async onCaught(n) {
+      await say('A man of the band sees you coming from the judgment-seat. He shouts for the others.');
+      await say('You double back and hide until the street is clear.');
+      await fadeOut();
+      Field.P.x = cp[0]; Field.P.y = cp[1]; Field.P.dir = cp[2]; Field.resetNPCs(); Field.snapCam();
+      await fadeIn();
+    },
+    hud() { frame(0, 0, 160, 13); text('RUN TO HELAMAN’S HOUSE', 5, 3, 3); },
+  };
+  setDawn(0.1);
+  Field.setup(CITY, cfg);
+  setMode(fieldMode());
+  Sound.play('escape');
+  await fadeIn();
+  await say('The band is searching for Kishkumen. Get back to Helaman’s house unseen. You may run.');
+}
+
+/* ---------- ending ---------- */
+async function ending() {
+  State.scene = 7;
+  writeSave({ scene: 1, signs: [false, false, false], checkpoint: null });
+  setDawn(1); G.lighting = 'day';
+  const HOUSE = buildHouseInterior();
+  const hel = ent({ x: T(10), y: T(5) + 6, dir: 'down', kind: 'npc', spr: SPR.helaman });
+  Field.setup(HOUSE, { start: [T(10), T(17) + 4], startDir: 'up', npcs: [hel] });
+  Field.lock++;
+  setMode({ update() { Field.update(); }, draw() { G.lighting = 'day'; Field.draw(); } });
+  Sound.play('house');
+  await fadeIn();
+  Sound.sfx('door');
+  await walkTo(Field.P, T(10), T(10) + 4, 0.8);
+  await sayAll([
+    ['HELAMAN', 'You are out of breath. What has happened?'],
+    'The servant told Helaman all the things which he had seen, and heard, and done.',
+    ['SERVANT', 'Kishkumen came by night to kill you, as he killed Pahoran. I learned the signs of his band, and he trusted me.'],
+    ['SERVANT', 'He asked me to lead him to the judgment-seat. He will not come again.'],
+    ['HELAMAN', 'Then the band will soon know. Rest now. My men will bring them to the law.'],
+  ]);
+  await fadeOut(false, 6);
+  // the wilderness
+  const WILD = buildWilderness();
+  const band = [SPR.gadianton, SPR.band, SPR.band, SPR.lookout, SPR.band].map((s, i) => ent({ x: T(25) + i * 18, y: T(10), dir: 'left', kind: 'npc', spr: s }));
+  Field.setup(WILD, { start: [T(12), T(9)], npcs: band });
+  Field.P.hidden = true;
+  setMode({ update() { stepMovers(); }, draw() { G.lighting = 'day'; Field.cam.x = 16; Field.cam.y = 0; Field.draw(); } });
+  Sound.play('wild');
+  await fadeIn(6);
+  band.forEach((b, i) => walkTo(b, -52 - i * 18, T(10), 0.42));
+  await sayAll([
+    'When Kishkumen did not return, Gadianton feared that he too would be destroyed.',
+    'He took his band, and they fled out of the land by a secret way, into the wilderness.',
+    'And when Helaman sent forth to take them, they could not be found.',
+  ]);
+  await wait(60);
+  await fadeOut(false, 8);
+  Sound.play(null);
+  await showCard(['MORMON WROTE THAT', 'THIS GADIANTON “DID', 'PROVE THE OVERTHROW,', 'YEA, ALMOST THE ENTIRE', 'DESTRUCTION OF THE', 'PEOPLE OF NEPHI.”', '', { t: 'HELAMAN 2:13-14', dim: 1 }], { min: 80 });
+  Sound.sfx('jingle');
+  await showCard([{ t: 'END OF', big: 1 }, { t: 'CHAPTER 1', big: 1 }, '', 'THE SERVANT OF HELAMAN', { t: 'HELAMAN 2:1-14', dim: 1 }, '', { t: 'THE SIGNS ARE IMAGINED;', dim: 1 }, { t: 'THE RECORD DOES NOT', dim: 1 }, { t: 'TELL THEM.', dim: 1 }], { min: 120 });
+  await completeChapter('servant');
+}
+
+/* ================= NOTEBOOK ================= */
+function notebookUpdate() { if (Input.pressed.start || Input.pressed.b || Input.pressed.a) { UI.notebook = false; Sound.sfx('page'); } }
+function notebookDraw() {
+  if (State.chapter === 'cj') { cjNotebookDraw(); return; }
+  rect(0, 0, W, H, 0); frame(0, 0, W, H);
+  textCenter('NOTEBOOK', 6, 3); rect(8, 15, 144, 1, 2);
+  let y = 20;
+  SIGNS.forEach((s, i) => {
+    if (State.signs[i]) { text((i + 1) + '', 6, y, 3); s.note.forEach(ln => { text(ln, 16, y, ln.startsWith('Answer') || ln.startsWith('ANSWER') ? 3 : 2); y += 9; }); }
+    else { text((i + 1) + ' ???', 6, y, 2); y += 9 * 4; }
+    y += 2;
+  });
+  rect(8, 133, 144, 1, 2);
+  textCenter('START: CLOSE', 135, 2);
+}
+
+/* ================= MAIN LOOP ================= */
+function tick() {
+  G.frame++;
+  if (G.cinema && G.bars < 14) G.bars++; else if (!G.cinema && G.bars > 0) G.bars--;
+  Input.update();
+  stepTimers();
+  stepMovers();
+  UI.closed = false;
+  const nbWasOpen = UI.notebook;
+  if (UI.notebook) notebookUpdate();
+  else if (UI.choice) choiceUpdate();
+  else if (UI.dlg) dlgUpdate();
+  if (mode && mode.update && !UI.notebook && !nbWasOpen && !UI.closed) mode.update();
+  Sound.schedule();
+}
+function render() {
+  curRamp = RAMP.world; fillScreen(3); litMask.fill(0); litDraw = 0;
+  if (mode) mode.draw();
+  litDraw = 2;
+  drawWeather();
+  if (G.bars > 0) { const k = addColor('#0e0a16'); rect(0, 0, W, G.bars, k); rect(0, H - G.bars, W, G.bars, k); }
+  curRamp = RAMP.ui;
+  if (mode && mode.hud && !UI.notebook && !G.bars) mode.hud();
+  if (UI.dlg && !UI.notebook) dlgDraw();
+  if (UI.choice && !UI.notebook) choiceDraw();
+  if (UI.notebook) notebookDraw();
+  litDraw = 0; curRamp = RAMP.world;
+  present();
+}
+let lastT = 0, acc = 0;
+function loop(ts) {
+  if (!lastT) lastT = ts;
+  acc += Math.min(100, ts - lastT); lastT = ts;
+  let n = 0;
+  requestAnimationFrame(loop);
+  try {
+    while (acc >= 1000 / 60 && n < 5) { tick(); acc -= 1000 / 60; n++; if (UI.closed) { acc = Math.min(acc, 1000 / 60); break; } }
+    if (n) render();
+  } catch (e) { console.error(e); }
+}
+layout();
+G.fade = 4;
+goTitle();
+requestAnimationFrame(loop);
+window.__game = { goMap: (f) => goMap(f), completeChapter: (i) => completeChapter(i), PROG, OUTSIDE: () => OUTSIDE, GARDEN: () => GARDEN, platesBook: (f) => platesBook(f), startSign: () => startSign(), signWarn: () => signWarn(), signPrayer: () => signPrayer(), signNight: () => signNight(), signStar: () => signStar(), CITY, cjTower: () => cjTower(), cjRun: () => cjRun(), cjPrison: () => cjPrison(), cjAccuse: () => cjAccuse(), cjHouse: () => cjHouse(), startChiefJudge: () => startChiefJudge(), State, Field, G, UI, Input, scene2, scene3, scene4, scene5, scene5Escape, ending, setMode, goTitle, startChapter2, ch2Outside, ch2Wall, ch2Escape, ch2Ending, get mode() { return mode; } };
+
+/* ================= CHAPTER 2: SAMUEL ON THE WALL (Helaman 13–16) ================= */
+function buildOutside() {
+  const m = gridOf(48, 44, 'm');
+  const { set, fill, bld } = mapTools(m);
+  fill(0, 0, 48, 3, 'R'); fill(0, 3, 48, 1, 'r'); fill(0, 4, 48, 2, 'X'); fill(22, 4, 4, 2, 'g');
+  fill(2, 8, 16, 8, ','); fill(30, 9, 14, 7, ','); fill(3, 29, 15, 9, ','); fill(30, 30, 14, 9, ',');
+  fill(22, 6, 4, 38, '.');
+  fill(0, 24, 48, 2, '~'); fill(22, 24, 4, 2, '.'); fill(5, 24, 2, 2, '.');
+  bld(4, 17, 7, 5, 3, [1, 5]); bld(34, 17, 8, 5, 4, [2, 6]); bld(10, 36, 7, 5, 3, [5]);
+  set(44, 6, 'T');
+  for (const [x, y] of [[1, 7], [19, 9], [20, 13], [28, 8], [29, 13], [45, 10], [46, 15], [1, 19], [15, 19], [19, 21], [28, 20], [31, 22], [44, 21], [2, 27], [9, 27], [20, 28], [27, 27], [36, 27], [43, 27], [1, 34], [20, 33], [27, 33], [45, 33], [19, 39], [28, 40], [38, 41], [6, 41], [46, 40]]) set(x, y, 'T');
+  for (const [x, y] of [[12, 10], [13, 10], [35, 12], [36, 12], [40, 14], [8, 31], [9, 31], [36, 34], [37, 34]]) set(x, y, 'B');
+  return new TileMap(m.map(r => r.join('')));
+}
+const OUTSIDE = buildOutside();
+
+async function startChapter2() {
+  State.chapter = 3;
+  const prev = loadSave() || {};
+  State.helpSeen = !!prev.helpSeen;
+  writeSave({ chapter: 2, scene: 21, helpSeen: State.helpSeen });
+  setDawn(0); G.lighting = 'day';
+  Sound.play('wild');
+  await showCard([{ t: 'CHAPTER 3', dim: 1 }, '', { t: 'SAMUEL', big: 1 }, { t: 'ON THE WALL', big: 1 }, '', { t: 'HELAMAN 13-16', dim: 1 }], { min: 60 });
+  // opening over the land outside Zarahemla
+  Field.setup(OUTSIDE, { start: [192, 40], npcs: [], lighting: 'day' });
+  Field.P.hidden = true;
+  const pan = { y: 40 };
+  setMode({ update() { pan.y = Math.min(150, pan.y + 0.22); Field.P.x = 192; Field.P.y = pan.y; Field.followCam(); }, draw() { G.lighting = 'day'; Field.draw(); } });
+  await fadeIn(6);
+  await sayAll([
+    'The eighty and sixth year. The Nephites still remain in wickedness.',
+    'Gadianton’s robbers had grown strong, and the people loved their riches more than the Lord.',
+    'That year a Lamanite named Samuel came into Zarahemla and began to preach repentance to the people.',
+    'They cast him out. He was about to return to his own land.',
+    'But the voice of the Lord came unto him, that he should return again and prophesy unto the people whatsoever things should come into his heart.',
+  ]);
+  await fadeOut(false, 6);
+  await ch2Outside();
+}
+
+/* ---------- scene 1: cast out ---------- */
+async function ch2Outside() {
+  State.scene = 21; UI.notebookAllowed = false;
+  setDawn(0);
+  await sceneBanner(1, 'CAST OUT');
+  writeSave({ chapter: 2, scene: 21 });
+  let askedGate = false;
+  const g1 = ent({ x: 180, y: 54, dir: 'down', kind: 'npc', spr: SPR.guard, solid: true });
+  const g2 = ent({ x: 204, y: 54, dir: 'down', kind: 'npc', spr: SPR.guard, solid: true });
+  const farmer = ent({ x: T(12), y: T(13), dir: 'right', kind: 'npc', spr: SPR.citizen, solid: true });
+  const child = ent({ x: T(38), y: T(13), dir: 'left', kind: 'npc', spr: SPR.citizen, solid: true, looks: [['left', 120], ['up', 90]] });
+  const cfg = {
+    start: [192, T(15)], startDir: 'up', npcs: [g1, g2, farmer, child], frags: ['sm1', 'sm2'], lighting: 'day', playerSpr: SPR.samuel,
+    target: () => askedGate ? { x: T(44) + 4, y: T(7) + 4 } : { x: 192, y: 62 },
+    interacts: [
+      { x: 192, y: 66, r: 24, fn: async () => {
+        face(g1, Field.P); face(g2, Field.P);
+        await sayAll([['GUARD', 'You again, Lamanite? You were cast out. Go back to your own people.'], ['GUARD', 'The gate is shut to you.']]);
+        await say('They would not let Samuel enter into the city.');
+        if (!askedGate) await say('Samuel looks along the wall. To the east, an old tree grows close against the stones.');
+        askedGate = true; g1.dir = g2.dir = 'down';
+      } },
+      { x: T(12), y: T(14) + 6, r: 18, fn: async () => {
+        face(farmer, Field.P);
+        await sayAll([['FARMER', 'A Lamanite, preaching repentance to the Nephites? You have courage, stranger.'], ['FARMER', 'Nobody in that city wants to hear about their sins. They want to hear about their gold.']]);
+      } },
+      { x: T(38), y: T(14) + 6, r: 18, fn: async () => {
+        face(child, Field.P);
+        await sayAll([['BOY', 'The gate is shut? I climb the old tree by the east wall to watch the market.'], ['BOY', 'From the top you can step right onto the wall.']]);
+        askedGate = true;
+      } },
+      { x: T(44) + 4, y: T(7) + 6, r: 14, fn: async () => {
+        await say('Samuel climbs the old tree and steps up onto the wall of Zarahemla.');
+        await fadeOut(); await ch2Wall();
+      } },
+    ],
+  };
+  Field.setup(OUTSIDE, cfg);
+  setMode(fieldMode());
+  Sound.play('wild');
+  await fadeIn();
+  await sayAll([
+    'You are Samuel. The Lord has sent you back to Zarahemla.',
+    'Find a way to speak to the people. Press A to talk to those you meet.',
+  ]);
+}
+
+/* ---------- scene 2: upon the wall ---------- */
+const WALL_WORDS = [
+  [['SAMUEL', 'Behold, I, Samuel, a Lamanite, do speak the words of the Lord which he doth put into my heart.'],
+   ['SAMUEL', 'Except ye repent, ye shall be destroyed. Nothing can save you but repentance, and faith on the Lord Jesus Christ.']],
+  [['SAMUEL', 'Ye have set your hearts upon your riches, and not upon the Lord who gave them to you.'],
+   ['SAMUEL', 'Your treasures shall become slippery, and ye shall not be able to hold them.'],
+   ['SAMUEL', 'Ye cast out the prophets. But if a man comes saying “do whatsoever your heart desireth,” ye will give him your gold.']],
+  [['SAMUEL', 'Behold, I give unto you a sign: five years more cometh, and behold, then cometh the Son of God.'],
+   ['SAMUEL', 'There shall be great lights in heaven. A day, a night, and a day, as if it were one day, and no darkness.'],
+   ['SAMUEL', 'And there shall a new star arise, such an one as ye never have beheld.']],
+  [['SAMUEL', 'And in the day that he shall suffer death, the sun shall be darkened, and there shall be no light for three days.'],
+   ['SAMUEL', 'There shall be thunder and lightning. The earth shall shake and tremble, and the rocks shall be broken.']],
+  [['SAMUEL', 'And now remember, remember, my brethren: ye are free; ye are permitted to act for yourselves.'],
+   ['SAMUEL', 'Repent, and turn to the Lord your God. He has given you knowledge, and made you free.']],
+];
+async function ch2Wall() {
+  State.scene = 22; UI.notebookAllowed = false;
+  await sceneBanner(2, 'ON THE WALL');
+  writeSave({ chapter: 2, scene: 22 });
+  const S = ent({ x: 80, y: 44, dir: 'down', spr: SPR.samuel });
+  const st = { stage: 0, prog: 0, flinch: 0, inv: 0, phase: 'talk', shots: [], fx: [], toast: '', toastT: 0, guards: [], resolve: null, preaching: false, ringT: 0, faltered: 0 };
+  const spots = [[18, 98], [42, 108], [66, 96], [92, 110], [116, 98], [142, 108], [28, 128], [54, 134], [80, 124], [106, 134], [132, 126]];
+  const crowd = spots.map(([x, y], i) => ent({ x, y, dir: 'up', spr: i % 3 ? SPR.citizen : SPR.band, role: 'crowd', hx: x, wander: 0 }));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function assign(s) {
+    const nA = [1, 2, 2, 3, 3][s], nT = [0, 1, 2, 2, 3][s];
+    crowd.forEach(c => { if (c.role === 'archer' || c.role === 'thrower') { c.role = 'crowd'; c.spr = SPR.citizen; } c.wind = 0; });
+    const avail = shuffle(crowd.filter(c => c.role === 'crowd'));
+    avail.slice(0, nA).forEach(c => { c.role = 'archer'; c.spr = SPR.archer; c.cd = rnd(40, 120); });
+    avail.slice(nA, nA + nT).forEach(c => { c.role = 'thrower'; c.spr = SPR.band; c.cd = rnd(80, 160); });
+  }
+  function falter() {
+    const sf = hasAbility('steadfast'); st.flinch = sf ? 26 : 36; st.inv = sf ? 110 : 80; st.prog = Math.max(0, st.prog - (sf ? 0.08 : 0.12)); G.shake = 6; Sound.sfx('glance');
+    st.toast = st.phase === 'dash' ? 'YOU STAGGER' : ++st.faltered === 1 ? 'IT MISSES, BUT YOU FALTER' : 'YOUR WORDS FALTER'; st.toastT = 90;
+  }
+  function fireRate(c) { const s = st.phase === 'dash' ? 5 : st.stage; return c.role === 'archer' ? rnd(130, 190) - s * 18 : rnd(150, 210) - s * 16; }
+  function update() {
+    st.t = (st.t || 0) + 1;
+    const active = (st.phase === 'play' || st.phase === 'dash') && !UI.dlg && !UI.choice;
+    if (st.flinch > 0) st.flinch--; if (st.inv > 0) st.inv--; if (st.toastT > 0) st.toastT--;
+    // Samuel
+    st.preaching = false;
+    if (active) {
+      const I = Input.held;
+      if (st.phase === 'play' && I.a && st.flinch === 0) {
+        st.preaching = true; S.dir = 'down'; S.frame = 0;
+        st.prog += 1 / (520 + 60 * st.stage);
+        if (++st.ringT % 22 === 0) { st.fx.push({ type: 'ring', x: S.x, y: S.y - 4, r: 6 }); Sound.sfx('preach'); }
+        if (st.prog >= 1) { st.prog = 1; st.phase = 'talk'; const r = st.resolve; st.resolve = null; r && r(); }
+      } else if (st.flinch === 0) {
+        let dx = (I.right ? 1 : 0) - (I.left ? 1 : 0), dy = (I.down ? 1 : 0) - (I.up ? 1 : 0);
+        const sp = st.phase === 'dash' ? 1.15 : 1.1;
+        if (dx || dy) {
+          if (dx && dy) { dx *= 0.75; dy *= 0.75; }
+          S.x = Math.max(10, Math.min(st.phase === 'dash' ? 156 : 150, S.x + dx * sp)); S.y = Math.max(38, Math.min(46, S.y + dy * sp));
+          S.dir = dx ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+          S.anim += sp; S.frame = 1 + ((S.anim / 8 | 0) % 2);
+          if (st.t % 16 === 0) Sound.sfx('step');
+        } else S.frame = 0;
+      } else S.frame = 0;
+    }
+    // crowd
+    for (const c of crowd) {
+      if (c.role === 'leaving') { c.x += 0.6; c.dir = 'right'; c.anim += 0.6; c.frame = 1 + ((c.anim / 8 | 0) % 2); if (c.x > 175) c.role = 'gone'; continue; }
+      if (c.role === 'gone') continue;
+      c.frame = 0; c.dir = 'up';
+      if (!active) continue;
+      if ((c.role === 'archer' || c.role === 'thrower')) {
+        if (c.wind > 0) {
+          c.wind--;
+          if (c.role === 'archer' && c.wind === 24) c.lock = { x: S.x, y: S.y - 7 };
+          if (c.wind === 0) {
+            if (c.role === 'archer') {
+              const sx = c.x, sy = c.y - 14, dx = c.lock.x - sx, dy = c.lock.y - sy, d = Math.hypot(dx, dy), sp = 2.1 + st.stage * 0.12;
+              st.shots.push({ type: 'arrow', x: sx, y: sy, vx: dx / d * sp, vy: dy / d * sp, life: 220 }); Sound.sfx('twang');
+            } else {
+              st.shots.push({ type: 'stone', sx: c.x, sy: c.y - 12, tx: S.x + rnd(-3, 3), ty: S.y - 2, t: 0, dur: 66 }); Sound.sfx('toss');
+            }
+            c.lock = null; c.cd = fireRate(c);
+          }
+        } else if (--c.cd <= 0) c.wind = c.role === 'archer' ? 52 : 34;
+        // step along the crowd now and then
+        if (c.wind === 0 && st.t % 200 === (c.hx | 0) % 200) c.tx = Math.max(12, Math.min(148, c.hx + rnd(-16, 16)));
+        if (c.tx !== undefined && c.wind === 0) { const d = c.tx - c.x; if (Math.abs(d) > 0.5) { c.x += Math.sign(d) * 0.4; c.dir = d > 0 ? 'right' : 'left'; c.anim += 0.4; c.frame = 1 + ((c.anim / 8 | 0) % 2); } }
+      }
+    }
+    // shots
+    for (let i = st.shots.length - 1; i >= 0; i--) {
+      const s = st.shots[i];
+      if (s.type === 'arrow') {
+        if (active || s.spent) { s.x += s.vx; s.y += s.vy; }
+        if (s.spent) { s.vy += 0.12; s.life -= 2; }
+        if (!s.spent && st.inv === 0 && active && Math.hypot(s.x - S.x, s.y - (S.y - 7)) < 6) { falter(); s.spent = true; s.vx = -s.vx * 0.4 + rnd(-0.6, 0.6); s.vy = 0.8; }
+        if (--s.life <= 0 || s.y < -6 || s.y > 150 || s.x < -6 || s.x > 166) st.shots.splice(i, 1);
+      } else {
+        if (active) s.t++;
+        if (s.t >= s.dur) {
+          if (st.inv === 0 && active && Math.hypot(s.tx - S.x, s.ty - (S.y - 2)) < 9) falter();
+          Sound.sfx('thud');
+          for (let k = 0; k < 5; k++) st.fx.push({ type: 'chip', x: s.tx, y: s.ty, vx: rnd(-1, 1), vy: rnd(-1.6, -0.4), t: 24 });
+          st.shots.splice(i, 1);
+        }
+      }
+    }
+    for (let i = st.fx.length - 1; i >= 0; i--) {
+      const f = st.fx[i];
+      if (f.type === 'ring') { f.r += 1.3; if (f.r > 70) st.fx.splice(i, 1); }
+      else { f.x += f.vx; f.y += f.vy; f.vy += 0.15; if (--f.t <= 0) st.fx.splice(i, 1); }
+    }
+    // dash: captains' men come along the wall
+    if (st.phase === 'dash' && active) {
+      for (const gd of st.guards) {
+        gd.x += gd.sp; gd.dir = 'right'; gd.anim += gd.sp; gd.frame = 1 + ((gd.anim / 8 | 0) % 2);
+        gd.y += Math.sign(S.y - gd.y) * 0.3;
+        if (Math.hypot(gd.x - S.x, gd.y - S.y) < 10) { st.phase = 'caught'; const r = st.resolve; st.resolve = null; r && r(false); break; }
+      }
+      if (S.x >= 154 && st.phase === 'dash') { st.phase = 'talk'; const r = st.resolve; st.resolve = null; r && r(true); }
+    }
+  }
+  function draw() {
+    G.lighting = 'day';
+    for (let tx = 0; tx < 20; tx++) {
+      blit(TILES.R.bmp, 8, 8, tx * 8, 8); blit(TILES[tx % 5 === 2 ? 'p' : 'R'].bmp, 8, 8, tx * 8, 16); blit(TILES.r.bmp, 8, 8, tx * 8, 24);
+      blit(TILES.p.bmp, 8, 8, tx * 8, 32); blit(TILES.p.bmp, 8, 8, tx * 8, 40);
+      blit(TILES.X.bmp, 8, 8, tx * 8, 48); blit(TILES.X.bmp, 8, 8, tx * 8, 56);
+      for (let ty = 8; ty < 18; ty++) blit(TILES[ty === 8 ? ',' : 'm'].bmp, 8, 8, tx * 8, ty * 8);
+    }
+    for (let x = 0; x < 160; x += 8) { rect(x, 30, 5, 2, 2); rect(x, 47, 5, 2, 3); }
+    rect(0, 49, 160, 1, 3);
+    // preaching rings
+    for (const f of st.fx) if (f.type === 'ring') {
+      for (let a = 0.15; a < Math.PI - 0.15; a += 0.09) { const px = f.x + Math.cos(a) * f.r, py = f.y + Math.sin(a) * f.r * 0.8; if (((a * 20) | 0) % 2) pset(px, py, f.r > 45 ? 1 : 0); }
+    }
+    // stone targets
+    for (const s of st.shots) if (s.type === 'stone') {
+      const r = 3 + 6 * (s.t / s.dur);
+      for (let a = 0; a < 6.28; a += 0.5) pset(s.tx + Math.cos(a) * r, s.ty + Math.sin(a) * r * 0.6, (G.frame & 4) ? 3 : 2);
+    }
+    // aim lines
+    for (const c of crowd) if (c.role === 'archer' && c.lock && (G.frame & 2)) {
+      const sx = c.x, sy = c.y - 14, dx = c.lock.x - sx, dy = c.lock.y - sy, d = Math.hypot(dx, dy);
+      for (let k = 6; k < d + 30; k += 4) pset(sx + dx / d * k, sy + dy / d * k, 3);
+    }
+    const ents = crowd.filter(c => c.role !== 'gone').concat(st.guards, [S]).sort((a, b) => a.y - b.y);
+    for (const e of ents) {
+      if (e === S && st.inv > 0 && (G.frame & 2)) continue;
+      drawChar(e.spr, e.dir, e.frame, e.x + (e === S && st.flinch > 20 ? ((G.frame & 2) ? 1 : -1) : 0), e.y);
+      if (e.role === 'archer') { const bx = Math.round(e.x) + 5, by = Math.round(e.y) - 14; rect(bx, by - 3, 1, 7, 3); pset(bx - 1, by - 4, 3); pset(bx - 1, by + 4, 3); if (e.wind > 0) rect(bx - 6, by, 6, 1, 2); }
+      if ((e.role === 'archer' || e.role === 'thrower') && e.wind > 0 && (G.frame & 4)) blit(BUBBLES.alert, 8, 8, Math.round(e.x) - 4, Math.round(e.y) - 26);
+    }
+    // shots in the air
+    for (const s of st.shots) {
+      if (s.type === 'arrow') {
+        const d = Math.hypot(s.vx, s.vy) || 1, ux = s.vx / d, uy = s.vy / d;
+        for (let k = 0; k < 7; k++) pset(s.x - ux * k, s.y - uy * k, k > 4 ? 1 : 3);
+      } else {
+        const t = s.t / s.dur, x = s.sx + (s.tx - s.sx) * t, gy = s.sy + (s.ty - s.sy) * t, h = Math.sin(Math.PI * t) * 34;
+        pset(x, gy, 2); pset(x + 1, gy, 2);
+        rect(x - 1, gy - h - 1, 3, 3, 3); pset(x, gy - h - 1, 1);
+      }
+    }
+    for (const f of st.fx) if (f.type === 'chip') pset(f.x, f.y, 3);
+  }
+  function hud() {
+    if (st.phase === 'dash' || st.phase === 'caught') { frame(0, 0, 160, 13); text('RUN ALONG THE WALL', 5, 3, 3); if ((G.frame >> 4) % 2) icon('>', 150, 3, 3); }
+    else {
+      frame(0, 0, 160, 13); text('WORDS ' + (st.stage + 1) + '/5', 5, 3, 3);
+      rect(72, 3, 82, 7, 3); rect(73, 4, 80, 5, 0); rect(73, 4, Math.round(80 * st.prog), 5, 2);
+    }
+    if (st.toastT > 0 && !UI.dlg) { const w = st.toast.length * 6 + 10; frame((160 - w) >> 1, 128, w, 14); textCenter(st.toast, 132, 3); }
+    else if (st.phase === 'play' && !st.preaching && st.prog < 0.08 && !UI.dlg && (G.frame >> 5) % 2) { frame(30, 128, 100, 14); textCenter('HOLD A TO PREACH', 132, 3); }
+  }
+  window.__wall = { st, S, crowd };
+  setMode({ update, draw, hud });
+  Sound.play('wall');
+  await fadeIn();
+  await sayAll([
+    'Samuel stands upon the wall, and cries with a loud voice. The people gather below.',
+    'Hold A to preach. You cannot move while you speak.',
+    'Some will shoot arrows or throw stones. Watch for the “!” and the aim lines, and step aside.',
+    'The record says they could not hit him. But if one comes close, your words falter.',
+  ]);
+  for (let s = 0; s < 5; s++) {
+    st.stage = s; st.prog = 0; assign(s);
+    st.phase = 'play';
+    await new Promise(r => { st.resolve = r; });
+    st.shots = []; crowd.forEach(c => { c.wind = 0; c.lock = null; });
+    Sound.sfx('learn');
+    await sayAll(WALL_WORDS[s]);
+    // some believe, and go to find Nephi
+    const listeners = crowd.filter(c => c.role === 'crowd').slice(0, s === 4 ? 3 : 1);
+    listeners.forEach(c => c.role = 'leaving');
+    if (s === 0) await say('One man in the crowd lowers his head, then hurries away toward the city.');
+  }
+  await sayAll([
+    'Many who heard the words of Samuel believed, and went forth to seek Nephi, that they might be baptized.',
+    'But many were angry. They cast stones at him, and shot arrows at him as he stood upon the wall.',
+    'But the Spirit of the Lord was with him, insomuch that they could not hit him.',
+    'Then they cried unto their captains: Take this fellow and bind him!',
+  ]);
+  for (;;) {
+    S.x = 60; S.y = 44; st.inv = 0; st.flinch = 0; st.shots = [];
+    st.guards = [ent({ x: -6, y: 42, spr: SPR.guard, sp: 0.62 }), ent({ x: -26, y: 45, spr: SPR.guard, sp: 0.58 })];
+    assign(4);
+    crowd.forEach(c => { if (c.role === 'archer' || c.role === 'thrower') c.cd = rnd(20, 90); });
+    await say('The captains’ men climb onto the wall behind you. Run to the end of the wall!');
+    st.phase = 'dash';
+    const ok = await new Promise(r => { st.resolve = r; });
+    if (ok) break;
+    Sound.sfx('caught'); G.shake = 14;
+    await say('A hand catches at your robe, and you pull free. They fall back, and come on again.');
+  }
+  st.shots = [];
+  await say('Samuel cast himself down from off the wall, and fled.');
+  await fadeOut();
+  await ch2Escape();
+}
+
+/* ---------- scene 3: flight to his own country ---------- */
+async function ch2Escape() {
+  State.scene = 23; UI.notebookAllowed = false;
+  await sceneBanner(3, 'THE FLIGHT');
+  writeSave({ chapter: 2, scene: 23 });
+  let cp = [T(46), T(7) + 6, 'down'];
+  const p = (x, y, path, o = {}) => ent(Object.assign({ x, y, kind: 'searcher', spr: SPR.guard, path, speed: 0.45, cone: { len: 50, half: 0.5 }, lookAround: true, chase: true, chaseSpeed: 0.72 }, o));
+  const npcs = [
+    p(T(28), T(8), [[T(28), T(8), 60, 'right'], [T(39), T(8), 60, 'left']]),
+    p(T(32), T(12), [[T(32), T(12), 40], [T(42), T(12), 40], [T(42), T(15) + 4, 40], [T(32), T(15) + 4, 40]], { speed: 0.4 }),
+    ent({ x: T(24), y: T(23), kind: 'searcher', spr: SPR.guard, looks: [['up', 130], ['left', 70], ['down', 90], ['right', 70]], dir: 'up', cone: { len: 54, half: 0.55 }, chase: true, chaseSpeed: 0.72 }),
+    p(T(4), T(22) + 4, [[T(3), T(22) + 4, 70, 'right'], [T(14), T(22) + 4, 70, 'left']], { speed: 0.4 }),
+    p(T(10), T(28), [[T(10), T(28), 50], [T(40), T(28), 50]], { speed: 0.5 }),
+    p(T(30), T(37), [[T(29), T(36) + 4, 60], [T(43), T(36) + 4, 60]], { speed: 0.4 }),
+  ];
+  const cfg = {
+    start: [cp[0], cp[1]], startDir: 'down', npcs, lighting: 'day', playerSpr: SPR.samuel,
+    target: () => ({ x: Field.P.x, y: T(43) }),
+    tick() {
+      if (Field.P.y > T(27) && cp[1] < T(27)) { cp = [Field.P.x, Field.P.y, Field.P.dir]; Field.runScript(() => say('Across the river. The land of the Lamanites lies to the south.')); }
+    },
+    triggers: [{ x: 0, y: T(42) + 2, w: T(48), h: T(2), fn: async () => { await fadeOut(); await ch2Ending(); } }],
+    async onCaught() {
+      await say('Men of the city close in around you. You break away and hide among the trees until they pass.');
+      await fadeOut();
+      Field.P.x = cp[0]; Field.P.y = cp[1]; Field.P.dir = cp[2]; Field.resetNPCs(); Field.snapCam();
+      await fadeIn();
+    },
+    hud() { frame(0, 0, 160, 13); text('FLEE SOUTH TO YOUR LAND', 5, 3, 3); },
+  };
+  Field.setup(OUTSIDE, cfg);
+  setMode(fieldMode());
+  Sound.play('escape');
+  await fadeIn();
+  await say('Men pour out of the gate to take you. Flee south! Hold B to run.');
+}
+
+/* ---------- ending ---------- */
+async function ch2Ending() {
+  State.scene = 24;
+  writeSave({ chapter: 1, scene: 1, signs: [false, false, false], checkpoint: null });
+  Sound.play('house');
+  await showCard(['SAMUEL FLED OUT OF THEIR', 'LANDS, UNTO HIS OWN', 'COUNTRY, AND PREACHED', 'AMONG HIS OWN PEOPLE.', '', 'AND HE WAS NEVER HEARD', 'OF MORE AMONG THE', 'NEPHITES.', '', { t: 'HELAMAN 16:7-8', dim: 1 }], { min: 80 });
+  // Nephi baptizes those who believed
+  const nephi = ent({ x: T(28), y: T(23) + 4, dir: 'left', kind: 'npc', spr: SPR.nephi });
+  const line = [0, 1, 2, 3].map(i => ent({ x: T(40) + i * 18, y: T(23) + 4, dir: 'left', kind: 'npc', spr: i % 2 ? SPR.citizen : SPR.band }));
+  Field.setup(OUTSIDE, { start: [T(30), T(24) + 4], npcs: [nephi, ...line], lighting: 'day' });
+  Field.P.hidden = true; Field.lock++;
+  setMode({ update() { Field.update(); }, draw() { G.lighting = 'day'; Field.draw(); } });
+  await fadeIn(6);
+  line.forEach((c, i) => walkTo(c, T(30) + 4 + i * 16, T(23) + 4, 0.35));
+  await sayAll([
+    'Those who believed the words of Samuel went forth to find Nephi.',
+    'They came confessing their sins, and Nephi baptized them.',
+  ]);
+  await wait(40);
+  await fadeOut(false, 6);
+  // five years later: the sign
+  let t = 0;
+  setMode({
+    update() { t++; },
+    draw() {
+      drawSkyline(t, true);
+      G.lighting = 'day';
+      const sx = 30, sy = 24, tw = (t >> 3) % 2;
+      for (let k = -7 - tw; k <= 7 + tw; k++) { pset(sx + k, sy, 3); pset(sx, sy + k, 3); }
+      for (let k = -3; k <= 3; k++) { pset(sx + k, sy + k, 2); pset(sx + k, sy - k, 2); }
+      rect(sx - 2, sy - 2, 5, 5, 3); rect(sx - 1, sy - 1, 3, 3, 0);
+    },
+  });
+  await fadeIn(8);
+  await sayAll([
+    'Five years later, the day of the sign came.',
+    'The sun went down, and there was no darkness. The night was as light as midday.',
+    'And a new star did appear, according to the word.',
+  ]);
+  await fadeOut(false, 8);
+  Sound.sfx('jingle');
+  await showCard([{ t: 'THE END', big: 1 }, '', 'SAMUEL THE LAMANITE', { t: 'HELAMAN 13-16', dim: 1 }, { t: '3 NEPHI 1', dim: 1 }], { min: 120 });
+  await completeChapter('samuel');
+}
+
+/* ================= SHARED: cinematics ================= */
+function cinema(on) { G.cinema = !!on; }
+async function panTo(x, y, frames = 60) {
+  const F = Field, m = F.map, sx = F.cam.x, sy = F.cam.y;
+  const tx = Math.max(0, Math.min(m.pw - W, x - 80)), ty = Math.max(0, Math.min(m.ph - H, y - 72));
+  for (let i = 1; i <= frames; i++) { const k = i / frames, e = k * k * (3 - 2 * k); F.camLock = { x: sx + (tx - sx) * e, y: sy + (ty - sy) * e }; await wait(1); }
+}
+function releaseCam() { Field.camLock = null; }
+function lightning(n = 8) { G.flash = n; G.shake = Math.max(G.shake, 10); Sound.sfx('strike'); }
+function drawWeather() {
+  if (G.rain > 0) { const c = addColor('#a9c8e8'); const n = Math.round(70 * G.rain); for (let i = 0; i < n; i++) { const x = (i * 37 + G.frame * 2) % 170 - 6, y = (i * 53 + G.frame * 6) % 150 - 6; pset(x, y, c); pset(x - 1, y + 2, c); pset(x - 2, y + 4, c); } }
+  if (G.flash > 0) { G.flash--; if (G.flash % 4 < 2) fillScreen(addColor('#fff8e0')); }
+}
+function drawHeart(x, y, full) {
+  const c = full ? addColor('#c2453a') : addColor('#a0703f');
+  rect(x + 1, y, 2, 1, c); rect(x + 4, y, 2, 1, c); rect(x, y + 1, 7, 2, c); rect(x + 1, y + 3, 5, 1, c); rect(x + 2, y + 4, 3, 1, c); pset(x + 3, y + 5, c);
+}
+function drawPlate(x, y) {
+  const d = addColor('#a8701e'), g = addColor('#e8ae3a'), l = addColor('#ffd968');
+  rect(x, y, 7, 8, d); rect(x + 1, y + 1, 5, 6, g); rect(x + 2, y + 2, 3, 1, d); rect(x + 2, y + 4, 3, 1, d); pset(x + 1, y + 1, l);
+  const s = (G.frame >> 3) % 8, sp = [[-2, -2], [8, 0], [9, 8], [-2, 7]][s % 4];
+  if (s < 4) pset(x + sp[0], y + sp[1], addColor('#fffdf0'));
+}
+
+/* ================= SHARED: plate fragments ================= */
+const FRAGS = {
+  sv1: { ch: 'servant', x: T(60) + 4, y: T(43) + 4, ref: 'HELAMAN 3:35', text: 'They did fast and pray oft, and did wax stronger and stronger in their humility.' },
+  sv2: { ch: 'servant', x: T(3) + 4, y: T(11) + 4, ref: 'HELAMAN 5:12', text: 'Remember that it is upon the rock of our Redeemer, who is Christ, the Son of God, that ye must build your foundation.' },
+  jd1: { ch: 'judge', x: T(23) + 4, y: T(6) + 4, ref: 'HELAMAN 10:5', text: 'Thou hast with unwearyingness declared the word, which I have given unto thee, unto this people.' },
+  jd2: { ch: 'judge', x: T(2) + 4, y: T(7) + 4, ref: 'HELAMAN 12:23', text: 'Blessed are they who will repent and hearken unto the voice of the Lord their God.' },
+  sm1: { ch: 'samuel', x: T(46) + 4, y: T(19) + 4, ref: 'HELAMAN 14:30', text: 'Ye are free; ye are permitted to act for yourselves.' },
+  sm2: { ch: 'samuel', x: T(3) + 4, y: T(12) + 4, ref: 'HELAMAN 14:31', text: 'He hath given unto you that ye might know good from evil.' },
+  sg1: { ch: 'sign', x: T(25) + 4, y: T(44) + 4, ref: '3 NEPHI 1:8', text: 'They did watch steadfastly for that day and that night and that day which should be as one day.' },
+  sg2: { ch: 'sign', x: T(47) + 4, y: T(10) + 4, ref: '3 NEPHI 1:20', text: 'The words which came unto Nephi were fulfilled, according as they had been spoken.' },
+};
+const fragsOf = ch => Object.keys(FRAGS).filter(id => FRAGS[id].ch === ch);
+const allFrags = () => Object.keys(FRAGS).every(id => PROG.frags[id]);
+async function collectFrag(id) {
+  const f = FRAGS[id], before = faith();
+  PROG.frags[id] = true; saveProg(); Sound.sfx('learn');
+  await say('A fragment of the plates! “' + f.text + '” (' + f.ref + ')');
+  await say('Faith +1. Press Start on the map to read your plates.');
+  const a = ABILITIES.find(a => before < a.need && faith() >= a.need);
+  if (a) { Sound.sfx('jingle'); await say('New gift: ' + a.name + '. ' + a.desc.toLowerCase()); }
+}
+
+/* ================= SHARED: the world map ================= */
+const CHAPTERS = [
+  { id: 'servant', title: 'THE SERVANT', ref: 'HELAMAN 2', place: 'HELAMAN’S HOUSE', x: 47, y: 82, from: 2, start: () => newGame() },
+  { id: 'judge', title: 'THE CHIEF JUDGE', ref: 'HELAMAN 7-10', place: 'NEPHI’S GARDEN', x: 50, y: 60, from: 31, start: () => startChiefJudge() },
+  { id: 'samuel', title: 'SAMUEL ON THE WALL', ref: 'HELAMAN 13-16', place: 'THE CITY WALL', x: 89, y: 68, from: 21, start: () => startChapter2() },
+  { id: 'sign', title: 'THE SIGN', ref: '3 NEPHI 1', place: 'THE MARKET', x: 66, y: 74, from: 41, start: () => startSign() },
+  { id: 'gathering', title: 'THE GATHERING', ref: '3 NEPHI 3-4', place: 'THE LAND NORTHWARD', x: 78, y: 34, locked: true },
+  { id: 'bountiful', title: 'BOUNTIFUL', ref: '3 NEPHI 11', place: 'THE TEMPLE', x: 58, y: 20, locked: true },
+  { id: 'record', title: 'THE RECORD', ref: 'BONUS', place: 'ALL PLATES FOUND', x: 24, y: 42, bonus: true, start: () => recordScene() },
+];
+function chapterOfScene(s) { if (!s) return null; if (s >= 41) return 'sign'; if (s >= 31) return 'judge'; if (s >= 21) return 'samuel'; if (s >= 2) return 'servant'; return null; }
+function mapNodes() { return CHAPTERS.filter(c => !c.bonus || allFrags()); }
+function drawWorld(t) {
+  G.lighting = 'day';
+  const sand = addColor('#dcc08a'), sea = addColor('#3a8fb7'), seaL = addColor('#6fc0d8'), river = addColor('#3a8fb7');
+  rect(0, 13, W, 94, sand);
+  for (let y = 13; y < 107; y++) {
+    const w1 = 9 + Math.round(2 * Math.sin(y / 7)), w2 = 8 + Math.round(2 * Math.sin(y / 6 + 2));
+    rect(0, y, w1, 1, sea); rect(W - w2, y, w2, 1, sea);
+    if ((y + (t >> 4)) % 9 === 0) { pset(3, y, seaL); pset(W - 4, y, seaL); }
+  }
+  // jungle
+  const jg = addColor('#5a9440'), jd = addColor('#33663a');
+  for (let i = 0; i < 70; i++) { const x = 14 + (i * 61) % 130, y = 16 + (i * 37) % 70; if ((x > 36 && x < 96 && y > 48 && y < 92) || Math.abs(x - 104) < 8) continue; rect(x, y, 4, 3, jg); pset(x + 1, y, jd); pset(x + 3, y + 2, jd); }
+  // river Sidon
+  for (let y = 13; y < 107; y++) { const x = 104 + Math.round(4 * Math.sin(y / 9)); rect(x, y, 4, 1, river); if ((y + (t >> 3)) % 7 === 0) pset(x + 1, y, seaL); }
+  // narrow strip of wilderness: mountains
+  const mt = addColor('#9c8462'), md = addColor('#5e4a3a'), snow = addColor('#f6efe0');
+  for (let i = 0; i < 9; i++) { const bx = 12 + i * 16, by = 104; for (let k = 0; k < 9; k++) rect(bx - k, by - 9 + k, 1 + k * 2, 1, k < 2 ? snow : (k % 3 ? mt : md)); }
+  // roads
+  const road = addColor('#b88f55');
+  const dots = (a, b) => { const n = Math.hypot(b[0] - a[0], b[1] - a[1]) / 3 | 0; for (let i = 0; i <= n; i++) pset(Math.round(a[0] + (b[0] - a[0]) * i / n), Math.round(a[1] + (b[1] - a[1]) * i / n), road); };
+  dots([66, 52], [78, 34]); dots([78, 34], [58, 20]); dots([40, 70], [24, 42]);
+  // Zarahemla
+  const wall = addColor('#9c8462'), plaza = addColor('#f1e0b6'), roof = addColor('#b4532c'), lime = addColor('#e3cc93');
+  rect(38, 52, 56, 38, wall); rect(40, 54, 52, 34, plaza);
+  for (let y = 57; y < 86; y += 7) for (let x = 43; x < 90; x += 8) if (!(x > 56 && x < 76 && y < 66)) { rect(x, y, 5, 4, roof); pset(x + 1, y + 3, addColor('#7a3220')); }
+  rect(58, 55, 16, 9, lime); rect(60, 53, 12, 2, addColor('#c4a46a'));
+}
+function drawNode(n, sel, t) {
+  const done = PROG.done[n.id], x = n.x, y = n.y;
+  const ring = n.locked ? addColor('#7a6a5a') : n.bonus ? addColor('#ffd968') : done ? addColor('#e8ae3a') : addColor('#fffdf0');
+  const core = n.locked ? addColor('#4a3c34') : done || n.bonus ? addColor('#a8701e') : addColor('#3f9a86');
+  rect(x - 3, y - 2, 7, 5, ring); rect(x - 2, y - 3, 5, 7, ring); rect(x - 1, y - 1, 3, 3, core);
+  if (!n.locked && !done && (t >> 4) % 2) { pset(x - 4, y, ring); pset(x + 4, y, ring); pset(x, y - 4, ring); pset(x, y + 4, ring); }
+  if (sel && (t >> 3) % 2) { const c = addColor('#2b1d1a'); rect(x - 5, y - 5, 3, 1, c); rect(x + 3, y - 5, 3, 1, c); rect(x - 5, y + 5, 3, 1, c); rect(x + 3, y + 5, 3, 1, c); }
+}
+function mapMode(focus) {
+  const nodes = mapNodes();
+  let idx = Math.max(0, nodes.findIndex(n => n.id === focus));
+  if (!focus) { const nx = nodes.findIndex(n => !n.locked && !n.bonus && !PROG.done[n.id]); if (nx >= 0) idx = nx; }
+  const av = { x: nodes[idx].x, y: nodes[idx].y };
+  const m = {
+    t: 0, busy: false,
+    update() {
+      this.t++;
+      const n = nodes[idx]; const dx = n.x - av.x, dy = n.y - av.y, d = Math.hypot(dx, dy);
+      if (d > 1.2) { av.x += dx / d * 1.6; av.y += dy / d * 1.6; av.moving = true; } else { av.x = n.x; av.y = n.y; av.moving = false; }
+      if (this.busy || UI.dlg || UI.choice) return;
+      if (Input.pressed.left || Input.pressed.up) { idx = (idx + nodes.length - 1) % nodes.length; Sound.sfx('move'); }
+      if (Input.pressed.right || Input.pressed.down) { idx = (idx + 1) % nodes.length; Sound.sfx('move'); }
+      if (Input.pressed.start) { this.busy = true; Sound.sfx('page'); (async () => { await fadeOut(); await platesBook(nodes[idx].id); })(); return; }
+      if (Input.pressed.a) {
+        const n = nodes[idx];
+        this.busy = true; Sound.sfx('select');
+        (async () => {
+          if (n.locked) { await say('This land awaits a future chapter.'); this.busy = false; return; }
+          const save = loadSave();
+          if (!n.bonus && save && chapterOfScene(save.scene) === n.id && save.scene >= n.from) {
+            const c = await choose(['Continue', 'Start from the beginning', 'Back'], { title: n.title });
+            if (c === 2) { this.busy = false; return; }
+            await fadeOut(); if (c === 0) await continueGame(save); else await n.start(); return;
+          }
+          await fadeOut(); await n.start();
+        })();
+      }
+    },
+    draw() {
+      drawWorld(this.t);
+      for (let i = 0; i < nodes.length; i++) drawNode(nodes[i], i === idx, this.t);
+      drawChar(SPR.believer, 'down', av.moving ? 1 + ((this.t >> 3) % 2) : 0, av.x, av.y - 4 - ((this.t >> 5) % 2));
+    },
+    hud() {
+      const n = nodes[idx], f = faith();
+      frame(0, 0, 160, 13); text('FAITH ' + f, 5, 3, 3);
+      rect(62, 4, 92, 5, 3); rect(63, 5, Math.round(90 * Math.min(1, f / 20)), 3, addColor('#e8ae3a'));
+      for (const a of ABILITIES) { const x = 63 + Math.round(90 * a.need / 20); rect(x, 3, 1, 7, f >= a.need ? 0 : 2); }
+      if (UI.dlg || UI.choice) return;
+      frame(0, 106, 160, 38);
+      text(n.title, 6, 110, 3);
+      text(n.ref, 6, 120, 2);
+      const st = n.locked ? 'COMING SOON' : n.bonus ? 'A: OPEN' : PROG.done[n.id] ? 'COMPLETE' : 'A: PLAY';
+      text(st, 6, 131, n.locked ? 2 : 3);
+      text('START: PLATES', 76, 131, 2);
+      const fr = n.bonus ? [] : fragsOf(n.id);
+      fr.forEach((id, i) => { const x = 147 - (fr.length - 1 - i) * 10, y = 110; if (PROG.frags[id]) drawPlate(x, y); else { rect(x, y, 7, 8, 2); rect(x + 1, y + 1, 5, 6, 1); } });
+    },
+  };
+  return m;
+}
+async function goMap(focus) {
+  G.dawn = 0; setDawn(0); State.scene = 1; UI.notebookAllowed = false; G.cinema = false; G.bars = 0; G.rain = 0;
+  setMode(mapMode(focus)); Sound.play('map');
+  await fadeIn();
+}
+async function completeChapter(id) {
+  const first = !PROG.done[id], before = faith();
+  PROG.done[id] = true; saveProg();
+  writeSave({ chapter: 1, scene: 1, signs: [false, false, false], checkpoint: null });
+  const ch = CHAPTERS.find(c => c.id === id);
+  Sound.play('glory');
+  const got = fragsOf(id).filter(f => PROG.frags[f]).length, tot = fragsOf(id).length;
+  const lines = [{ t: 'COMPLETE', big: 1 }, '', ch.title, { t: ch.ref, dim: 1 }, '', 'PLATES FOUND ' + got + '/' + tot, first ? 'FAITH +3' : '', 'FAITH ' + faith()];
+  const a = ABILITIES.find(a => before < a.need && faith() >= a.need);
+  if (a) lines.push('', 'NEW GIFT: ' + a.name);
+  await showCard(lines, { min: 100 });
+  const order = CHAPTERS.filter(c => !c.bonus);
+  const next = order[order.findIndex(c => c.id === id) + 1];
+  await goMap(next ? next.id : id);
+}
+
+/* ================= SHARED: the book of plates ================= */
+async function platesBook(focus) {
+  const pages = [{ type: 'faith' }].concat(CHAPTERS.filter(c => fragsOf(c.id).length).map(c => ({ type: 'ch', ch: c })));
+  let pg = Math.max(0, pages.findIndex(p => p.ch && p.ch.id === focus));
+  await new Promise(res => {
+    setMode({
+      t: 0,
+      update() {
+        this.t++;
+        if (this.t < 10) return;
+        if (Input.pressed.left) { pg = (pg + pages.length - 1) % pages.length; Sound.sfx('page'); }
+        if (Input.pressed.right) { pg = (pg + 1) % pages.length; Sound.sfx('page'); }
+        if (Input.pressed.b || Input.pressed.start) { Sound.sfx('page'); this.t = -9999; fadeOut().then(res); }
+      },
+      draw() {
+        G.lighting = 'day'; curRamp = RAMP.ui; fillScreen(0); frame(0, 0, W, H); curRamp = RAMP.world;
+        const p = pages[pg];
+        if (p.type === 'faith') {
+          textCenter('FAITH ' + faith() + ' OF 20', 7, 3);
+          rect(8, 17, 144, 1, 2);
+          let y = 22;
+          for (const a of ABILITIES) {
+            const on = faith() >= a.need;
+            text((on ? '* ' : '- ') + a.name, 8, y, on ? 3 : 2); text('' + a.need, 140, y, 2); y += 10;
+            wrap(a.desc, 23).forEach(l => { text(l, 20, y, 2); y += 9; }); y += 4;
+          }
+          wrap('EARN FAITH BY FINISHING CHAPTERS (+3) AND FINDING PLATES (+1).', 24).forEach(l => { text(l, 8, y, 2); y += 9; });
+          y += 3; text('PLATES ' + Object.keys(PROG.frags).length + '/' + Object.keys(FRAGS).length, 8, y, 3);
+        } else {
+          textCenter(p.ch.title, 7, 3);
+          rect(8, 17, 144, 1, 2);
+          let y = 22;
+          for (const id of fragsOf(p.ch.id)) {
+            const f = FRAGS[id];
+            if (PROG.frags[id]) { drawPlate(8, y); text(f.ref, 20, y, 3); y += 10; wrap(f.text, 24).forEach(l => { text(l, 8, y, 2); y += 9; }); }
+            else { text('???', 20, y, 2); y += 10; text('STILL HIDDEN IN THIS', 8, y, 2); y += 9; text('CHAPTER.', 8, y, 2); y += 9; }
+            y += 5;
+          }
+        }
+        rect(8, 131, 144, 1, 2);
+        textCenter('< ' + (pg + 1) + '/' + pages.length + ' >   B: BACK', 134, 2);
+      },
+    });
+    fadeIn();
+  });
+  await goMap(focus);
+}
+
+/* ================= BONUS: the record is whole ================= */
+async function recordScene() {
+  let t = 0;
+  setMode({
+    update() { t++; },
+    draw() {
+      G.lighting = 'day';
+      for (let i = 0; i < 12; i++) rect(0, i * 12, W, 12, addColor(['#2a1d3a', '#33224a', '#3d2856', '#4a3060', '#5a3a68', '#6b456e', '#7d5070', '#8e5c6e', '#9c6a68', '#a87a62', '#b48a5c', '#c09a58'][i]));
+      const glow = addColor('#ffd968');
+      for (let r = 34; r > 20; r -= 3) for (let a = 0; a < 6.28; a += 0.08) pset(80 + Math.cos(a + t * 0.01) * r, 66 + Math.sin(a + t * 0.01) * r * 0.7, (r + (t >> 3)) % 6 < 3 ? glow : addColor('#e8ae3a'));
+      for (let i = 0; i < 6; i++) { const y = 54 + i * 4; rect(60, y, 40, 3, addColor(i % 2 ? '#e8ae3a' : '#ffd968')); rect(62, y + 1, 36, 1, addColor('#a8701e')); }
+      rect(58, 52, 2, 28, addColor('#7a5638')); rect(100, 52, 2, 28, addColor('#7a5638'));
+    },
+  });
+  Sound.play('glory');
+  await fadeIn(8);
+  await sayAll(['You have gathered every fragment of the plates.', 'Prophets kept this record for a thousand years, and one day it came forth again.', 'Their words still speak to all who will read them.']);
+  await fadeOut(false, 8);
+  await showCard([{ t: 'THE RECORD', big: 1 }, { t: 'IS WHOLE', big: 1 }, '', 'THANK YOU FOR PLAYING'], { min: 120 });
+  await goMap('record');
+}
+
+/* ================= CHAPTER 4: THE SIGN (3 Nephi 1) ================= */
+function makeScoffer(x, y, path, o = {}) { return ent(Object.assign({ x, y, kind: 'searcher', spr: SPR.scoffer, path, speed: 0.4, cone: { len: 46, half: 0.45 }, lookAround: true, solid: true }, o)); }
+const SIGN_START = [T(31) + 4, T(17), 'down'];
+async function startSign() {
+  const prev = loadSave() || {};
+  State.chapter = 'sign'; State.signFound = [false, false, false, false]; State.signCp = null;
+  writeSave({ chapter: 'sign', scene: 41, signFound: State.signFound, signCp: null, helpSeen: !!prev.helpSeen });
+  Sound.play('house');
+  await showCard(['FIVE YEARS HAVE PASSED', 'SINCE SAMUEL STOOD', 'UPON THE WALL.', '', 'THE UNBELIEVERS SAY', 'THE TIME IS PAST.', '', { t: '3 NEPHI 1', dim: 1 }], { min: 60 });
+  await signWarn();
+}
+async function signWarn() {
+  State.chapter = 'sign'; State.scene = 41; UI.notebookAllowed = false;
+  State.signFound = State.signFound || [false, false, false, false]; State.signCp = State.signCp || null;
+  await sceneBanner(1, 'THE DEADLINE');
+  writeSave({ chapter: 'sign', scene: 41, signFound: State.signFound, signCp: State.signCp });
+  const fams = [
+    { x: T(35) + 4, y: T(25) + 4, dir: 'down', spr: SPR.citizen, who: 'MOTHER', lines: ['They say the time is past, and Samuel’s words were vain.', 'But I watch the sky every night. I will not stop now.'] },
+    { x: T(6) + 4, y: T(10) + 4, dir: 'right', spr: SPR.five2, who: 'POTTER', lines: ['They have set a day. If no sign comes, every believer will be put to death.', 'Tell Nephi I am not afraid.'] },
+    { x: T(58) + 4, y: T(13) + 4, dir: 'left', spr: SPR.elder, who: 'OLD MAN', lines: ['I heard Samuel on the wall when I was young.', 'Five years, he said. I have counted every one.'] },
+    { x: T(37) + 4, y: T(40) + 4, dir: 'up', spr: SPR.five, who: 'FARMER', lines: ['My children ask if we will die.', 'I tell them the Lord keeps his word. We will meet you at Nephi’s house.'] },
+  ];
+  fams.forEach((f, i) => { f.e = ent({ x: f.x, y: f.y, dir: f.dir, kind: 'npc', spr: f.spr, solid: true, talking: !State.signFound[i] }); });
+  const scoffers = [
+    makeScoffer(T(12), T(20) + 4, [[T(12), T(20) + 4, 50], [T(40), T(20) + 4, 50]], { speed: 0.45 }),
+    makeScoffer(T(44) + 4, T(30) + 4, [[T(44) + 4, T(30) + 4, 60, 'left'], [T(60), T(30) + 4, 60, 'left']], { speed: 0.35 }),
+    makeScoffer(T(11) + 4, T(30), [[T(11) + 4, T(30), 60, 'down'], [T(11) + 4, T(43), 60, 'up']], { speed: 0.4 }),
+    makeLookout(T(52), T(10), [['down', 150], ['left', 110]], { spr: SPR.scoffer }),
+    makeLookout(T(42) + 4, T(23) + 4, [['left', 140], ['down', 120]], { spr: SPR.scoffer }),
+  ];
+  const found = () => State.signFound.filter(Boolean).length;
+  const cfg = {
+    start: (State.signCp || SIGN_START).slice(0, 2), startDir: (State.signCp || SIGN_START)[2], npcs: [...fams.map(f => f.e), ...scoffers], lighting: 'day',
+    playerSpr: SPR.believer, frags: ['sg1', 'sg2'],
+    target() {
+      const left = fams.filter((f, i) => !State.signFound[i]);
+      if (!left.length) return { x: T(6) + 4, y: T(42) };
+      const P = Field.P; left.sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y));
+      return { x: left[0].x, y: left[0].y };
+    },
+    interacts: fams.map((f, i) => ({ x: f.x, y: f.y, r: 16, when: () => !State.signFound[i], fn: async () => {
+      face(f.e, Field.P);
+      for (const l of f.lines) await say(l, f.who);
+      State.signFound[i] = true; f.e.talking = false; Sound.sfx('learn');
+      State.signCp = [Field.P.x, Field.P.y, Field.P.dir];
+      writeSave({ scene: 41, signFound: State.signFound, signCp: State.signCp });
+      if (found() === 4) { Sound.sfx('jingle'); await say('Everyone is warned. Hurry to Nephi’s house in the south-west.'); }
+    } })),
+    triggers: [{ x: T(4), y: T(41), w: T(5), h: T(4), once: false, when: () => found() === 4, fn: async () => { Field.triggers[0].done = true; await fadeOut(); await signPrayer(); } }],
+    async onCaught(n) {
+      const taunts = ['The day is set, believer. Your Samuel lied!', 'Still waiting for your sign? Soon you will wait no more.', 'Go home. There will be no sign.'];
+      await say(taunts[(Math.random() * taunts.length) | 0], 'SCOFFER');
+      await fadeOut();
+      const c = State.signCp || SIGN_START;
+      Field.P.x = c[0]; Field.P.y = c[1]; Field.P.dir = c[2]; Field.resetNPCs(); Field.snapCam();
+      await fadeIn();
+    },
+    hud() { frame(0, 0, 76, 13); text('WARNED ' + found() + '/4', 5, 3, 3); },
+  };
+  Field.setup(CITY, cfg);
+  setMode(fieldMode());
+  Sound.play('house');
+  await fadeIn();
+  if (!found()) await sayAll([
+    'The unbelievers have set a day. If the sign does not come, the believers will die.',
+    'Find four believing families and tell them to gather at Nephi’s house. Stay out of the scoffers’ sight.',
+  ]);
+}
+async function signPrayer() {
+  State.scene = 42; UI.notebookAllowed = false;
+  writeSave({ chapter: 'sign', scene: 42 });
+  await sceneBanner(2, 'NEPHI PRAYS');
+  const HOUSE = buildHouseInterior();
+  const nephi = ent({ x: T(10), y: T(11) + 4, dir: 'up', kind: 'npc', spr: SPR.nephiSon, solid: true });
+  const b1 = ent({ x: T(4) + 4, y: T(13), dir: 'right', kind: 'npc', spr: SPR.citizen, solid: true });
+  const b2 = ent({ x: T(15) + 4, y: T(13), dir: 'left', kind: 'npc', spr: SPR.elder, solid: true });
+  let done = false;
+  const pray = async () => {
+    done = true;
+    await sayAll([
+      'Nephi bowed himself down upon the earth, and cried mightily to his God in behalf of his people.',
+      'He cried all that day.',
+    ]);
+    Sound.play(null);
+    cinema(true);
+    await wait(30);
+    lightning(10); await wait(30);
+    Sound.play('glory');
+    await fadeTo(4, true, 4);
+    cinema(false); G.bars = 0;
+    await showCard(['LIFT UP YOUR HEAD', 'AND BE OF GOOD CHEER;', '', 'FOR BEHOLD, THE TIME', 'IS AT HAND, AND ON', 'THIS NIGHT SHALL THE', 'SIGN BE GIVEN.', '', { t: '3 NEPHI 1:13', dim: 1 }], { light: true, min: 90 });
+    await signNight();
+  };
+  const cfg = {
+    start: [T(10), T(16)], startDir: 'up', npcs: [nephi, b1, b2], lighting: 'day', playerSpr: SPR.believer,
+    target: () => done ? null : { x: nephi.x, y: nephi.y },
+    interacts: [
+      { x: nephi.x, y: nephi.y + 4, r: 18, when: () => !done, fn: pray },
+      { x: b1.x, y: b1.y, r: 16, fn: async () => { face(b1, Field.P); await say('Tomorrow is the day they set. Nephi has prayed since morning.', 'NEIGHBOR'); } },
+      { x: b2.x, y: b2.y, r: 16, fn: async () => { face(b2, Field.P); await say('If the sign does not come tonight... No. It will come.', 'OLD MAN'); } },
+    ],
+    hud() { frame(0, 0, 160, 13); text('GO TO NEPHI', 5, 3, 3); },
+  };
+  Field.setup(HOUSE, cfg);
+  setMode(fieldMode());
+  Sound.play('house');
+  await fadeIn();
+  await say('The believers wait at Nephi’s house. Nephi kneels in prayer.');
+}
+async function signNight() {
+  State.scene = 43; UI.notebookAllowed = false;
+  writeSave({ chapter: 'sign', scene: 43 });
+  await sceneBanner(3, 'NO DARKNESS');
+  setDawn(1);
+  const homes = [[24, 22], [27, 22], [30, 21], [34, 22], [38, 22], [24, 25], [39, 25]];
+  const crowd = homes.map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'down', kind: 'npc', spr: i % 3 === 1 ? SPR.band : SPR.scoffer, solid: false, st: 'idle', wait: 0 }));
+  crowd.forEach(c => { c.hx = c.x; c.hy = c.y; });
+  const flock = [[29, 28], [31, 28], [33, 28]].map(([x, y], i) => ent({ x: T(x) + 4, y: T(y) + 4, dir: 'up', kind: 'npc', spr: [SPR.citizen, SPR.elder, SPR.five2][i], solid: true }));
+  const DUR = 2400, cx = T(31) + 4, cy = T(28) + 4;
+  let phase = 'walk', t = 0, courage = 0, maxC = 0, retrying = false;
+  const resetDefense = () => {
+    t = 0; maxC = hasAbility('steadfast') ? 4 : 3; courage = maxC; setDawn(1);
+    crowd.forEach(c => { c.x = c.hx; c.y = c.hy; c.st = 'idle'; c.wait = 60 + Math.random() * 160; c.seen = false; c.dir = 'down'; });
+  };
+  const stepToward = (e, tx, ty, sp) => {
+    const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy); if (d < 0.5) return true;
+    const ox = e.x, oy = e.y; e.x += dx / d * Math.min(sp, d); if (Field.map.solidAt(e.x, e.y)) e.x = ox; e.y += dy / d * Math.min(sp, d); if (Field.map.solidAt(e.x, e.y)) e.y = oy;
+    if (Math.abs(e.x - ox) + Math.abs(e.y - oy) < 0.05) { const sx = e.x + (e.hx < tx ? -sp : sp); if (!Field.map.solidAt(sx, e.y)) e.x = sx; }   // slide around stalls and the well
+    e.moving = true; e.anim += sp; e.frame = 1 + ((e.anim / 8 | 0) % 2);
+    e.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    return d < 1;
+  };
+  const defenseTick = () => {
+    if (phase !== 'defend' || retrying) return;
+    t++; setDawn(1 - 0.55 * t / DUR);
+    const k = t / DUR, active = crowd.filter(c => c.st === 'advance').length, cap = 1 + Math.floor(k * 3.2);
+    const P = Field.P;
+    if (Input.pressed.a) {
+      let best = null, bd = 18; for (const c of crowd) { const d = Math.hypot(c.x - P.x, c.y - P.y); if (c.st === 'advance' && d < bd) { best = c; bd = d; } }
+      if (best) {
+        const dx = best.x - cx, dy = best.y - cy, d = Math.hypot(dx, dy) || 1;
+        for (let i = 0; i < 26; i++) { const nx = best.x + dx / d, ny = best.y + dy / d; if (Field.map.solidAt(nx, ny)) break; best.x = nx; best.y = ny; }
+        best.st = 'stun'; best.wait = 70; best.seen = true; G.shake = 5; Sound.sfx('thud');
+      }
+    }
+    for (const c of crowd) {
+      c.moving = false;
+      if (c.st === 'idle') { c.frame = 0; if (--c.wait <= 0 && active < cap) c.st = 'advance'; else face(c, P); }
+      else if (c.st === 'stun') { c.frame = 0; if (--c.wait <= 0) { c.st = 'retreat'; c.seen = false; } }
+      else if (c.st === 'retreat') { if (stepToward(c, c.hx, c.hy, 0.6)) { c.st = 'idle'; c.wait = 40 + Math.random() * (160 - 100 * k); } }
+      else if (c.st === 'advance') {
+        stepToward(c, cx, cy, 0.24 + 0.16 * k);
+        if (flock.some(b => Math.hypot(b.x - c.x, b.y - c.y) < 12)) {
+          courage--; Sound.sfx('wrong'); G.shake = 8; c.st = 'retreat';
+          if (courage <= 0) { retrying = true; Field.runScript(async () => {
+            await say('The believers lose heart and scatter. Stand firm and try again.');
+            await fadeOut(); resetDefense(); Field.P.x = cx; Field.P.y = cy + 14; Field.P.dir = 'up'; Field.snapCam(); await fadeIn(); retrying = false;
+          }); return; }
+        }
+      }
+      if (!c.moving && c.st !== 'idle') c.frame = 0;
+    }
+    if (t >= DUR) { phase = 'done'; Field.runScript(victory); }
+  };
+  const begin = async () => {
+    phase = 'intro';
+    const P = Field.P; P.dir = 'up';
+    cinema(true);
+    await panTo(T(31), T(22), 70);
+    crowd.forEach(c => face(c, P));
+    await sayAll([['SCOFFER', 'Look, the sun is going down. Where is the sign of your Samuel?'], ['SCOFFER', 'When darkness comes, you and all who believe shall die!']]);
+    await panTo(cx, cy, 50);
+    await say('Stand between the scoffers and the believers until the sun sets. Press A near a scoffer to stand firm.');
+    releaseCam(); cinema(false);
+    Field.P.x = cx; Field.P.y = cy + 14; Field.snapCam();
+    resetDefense(); phase = 'defend';
+    Sound.play('climax');
+  };
+  const victory = async () => {
+    crowd.forEach(c => { c.moving = false; c.frame = 0; face(c, Field.P); });
+    Sound.play(null); cinema(true);
+    await panTo(cx, T(24), 60);
+    await wait(40);
+    await say('The sun went down...');
+    Sound.play('glory');
+    for (let i = 0; i <= 100; i++) { setDawn(0.45 + 0.55 * i / 100); await wait(1); }
+    await say('...but there was no darkness. It was as light as though it were mid-day.');
+    G.shake = 24; Sound.sfx('thud'); crowd.forEach(c => { c.lying = true; c.seen = false; });
+    await wait(40);
+    await say('Those who had set the day fell to the earth, and became as if they were dead.');
+    await fadeOut(false, 6);
+    cinema(false); G.bars = 0; releaseCam();
+    await signStar();
+  };
+  const cfg = {
+    start: [T(6) + 4, T(42) + 4], startDir: 'down', npcs: [...crowd, ...flock], lighting: 'night', playerSpr: SPR.believer,
+    target: () => phase === 'walk' ? { x: cx, y: cy + 10 } : null,
+    triggers: [{ x: T(22), y: T(21), w: T(20), h: T(9) + 4, fn: begin }],
+    tick: defenseTick,
+    hud() {
+      if (phase !== 'defend') { frame(0, 0, 160, 13); text('GO TO THE MARKET', 5, 3, 3); return; }
+      frame(0, 0, 160, 13);
+      for (let i = 0; i < maxC; i++) drawHeart(5 + i * 9, 3, i < courage);
+      text('SUN', 52, 3, 3); rect(72, 4, 82, 5, 3); rect(73, 5, Math.round(80 * (1 - t / DUR)), 3, addColor('#f2a46a'));
+    },
+  };
+  Field.setup(CITY, cfg);
+  setMode(fieldMode());
+  Sound.play('night');
+  await fadeIn();
+  await sayAll(['The day they set has come. The believers wait by the well in the market.', 'Go and stand with them.']);
+}
+function drawSignSky(t) {
+  G.lighting = 'day';
+  const sky = ['#e9a85a', '#eeb664', '#f2c36e', '#f5cf7c', '#f7da8c', '#f9e3a0', '#fbebb6', '#fcf1c8'];
+  for (let i = 0; i < 8; i++) rect(0, i * 12, W, 12, addColor(sky[i]));
+  // the new star, growing and twinkling
+  const g = Math.min(1, t / 160), sx = 40, sy = 26, tw = (t >> 3) % 2, L = Math.round(3 + 8 * g) + tw;
+  if (t > 20) {
+    const core = addColor('#fffdf0'), ray = addColor('#fff3b8');
+    for (let k = -L; k <= L; k++) { pset(sx + k, sy, ray); pset(sx, sy + k, ray); }
+    const d = Math.round(L / 2); for (let k = -d; k <= d; k++) { pset(sx + k, sy + k, ray); pset(sx + k, sy - k, ray); }
+    rect(sx - 1, sy - 1, 3, 3, core);
+  }
+  // the city in full light
+  const wall = addColor('#c39a62'), roof = addColor('#b4532c'), lime = addColor('#e3cc93'), limeD = addColor('#c4a46a');
+  rect(0, 92, W, 20, addColor('#d9b47a'));
+  for (const [x, y, w] of [[0, 78, 22], [20, 84, 18], [36, 74, 20], [96, 76, 18], [112, 82, 24], [134, 72, 26]]) { rect(x, y, w, 40, wall); rect(x, y, w, 3, roof); }
+  rect(56, 62, 40, 40, lime); rect(52, 58, 48, 5, limeD); rect(60, 52, 32, 6, limeD); rect(68, 46, 16, 6, limeD);
+  for (let x = 58; x < 96; x += 6) rect(x, 66, 3, 30, limeD);
+  rect(54, 96, 44, 3, limeD); rect(50, 99, 52, 3, lime);
+  rect(0, 112, W, 32, addColor('#d4b073'));
+  for (let x = 0; x < W; x += 8) pset(x + ((x >> 3) % 2) * 3, 118, addColor('#b88f55'));
+  // people looking up
+  const ink = addColor('#5a3a28');
+  for (const px of [18, 30, 44, 108, 122, 140]) { rect(px, 120, 3, 6, ink); rect(px, 117, 3, 3, addColor('#8a5a34')); }
+}
+async function signStar() {
+  State.scene = 44;
+  let t = 0;
+  setMode({ update() { t++; }, draw() { drawSignSky(t); } });
+  Sound.play('house');
+  await fadeIn(8);
+  await wait(100);
+  await sayAll(['All that night it was light, as though it were mid-day.', 'And a new star did appear, according to the word.']);
+  await wait(60);
+  await fadeOut(false, 8);
+  await completeChapter('sign');
+}
+
+/* ================= CHAPTER 2: THE CHIEF JUDGE (Helaman 7–10) ================= */
+const CJ_NOTES = [
+  ['ASK IF NEPHI PLOTTED', 'WITH HIM. HE SAYS NAY.'],
+  ['ASK IF HE KILLED HIS', 'BROTHER. HE WILL DENY.'],
+  ['EXAMINE HIS CLOAK:', 'BLOOD ON THE SKIRTS.'],
+  ['ASK WHENCE THE BLOOD.', 'HE WILL TREMBLE, PALE.'],
+  ['SAY HIS FEAR SHOWS', 'GUILT. HE WILL CONFESS.'],
+];
+function cjNotebookDraw() {
+  rect(0, 0, W, H, 0); frame(0, 0, W, H);
+  textCenter('NEPHI’S WORDS', 6, 3); rect(8, 15, 144, 1, 2);
+  if (!State.cjNotes) { textCenter('NOTHING YET.', 60, 2); }
+  else CJ_NOTES.forEach((n, i) => { const y = 20 + i * 21; text((i + 1) + '', 6, y, 3); text(n[0], 16, y, 2); text(n[1], 16, y + 9, 3); });
+  rect(8, 133, 144, 1, 2); textCenter('START: CLOSE', 135, 2);
+}
+
+function buildGarden() {
+  const m = gridOf(26, 18, 'p');
+  const { set, fill, bld } = mapTools(m);
+  bld(0, 0, 9, 4, 4, [1, 7]); bld(17, 0, 9, 4, 4, [1, 7]);
+  fill(9, 0, 8, 4, 'H');
+  fill(1, 4, 24, 9, ','); fill(0, 4, 1, 10, 'H'); fill(25, 4, 1, 10, 'H'); fill(0, 13, 26, 1, 'H');
+  set(11, 13, ','); set(12, 13, ',');
+  set(15, 9, 'r'); set(16, 9, 'r'); fill(15, 10, 2, 3, 'X');
+  for (const [x, y] of [[3, 5], [7, 6], [4, 9], [20, 5], [22, 8], [19, 11], [9, 10], [2, 12], [23, 11]]) set(x, y, 'T');
+  set(5, 14, 'L'); set(20, 14, 'L');
+  fill(0, 17, 26, 1, 'W');
+  return new TileMap(m.map(r => r.join('')));
+}
+function buildPrison() {
+  const m = gridOf(20, 18, 'f');
+  const { set, fill } = mapTools(m);
+  fill(0, 0, 20, 3, 'h'); fill(0, 0, 1, 18, 'h'); fill(19, 0, 1, 18, 'h'); fill(0, 16, 20, 2, 'h');
+  fill(1, 11, 18, 1, 'b');
+  set(9, 1, 'w'); set(3, 3, 'B'); set(17, 3, 'B'); set(17, 4, 'B'); set(18, 6, 'B'); set(18, 7, 'B');
+  set(10, 13, 'L'); fill(17, 14, 2, 2, 'B');
+  return new TileMap(m.map(r => r.join('')));
+}
+const GARDEN = buildGarden(), PRISON = buildPrison();
+
+async function startChiefJudge() {
+  State.chapter = 'cj'; State.cjNotes = false;
+  const prev = loadSave() || {};
+  writeSave({ chapter: 'cj', scene: 31, cjNotes: false, helpSeen: !!prev.helpSeen });
+  setDawn(0);
+  Sound.play('house');
+  await showCard([{ t: 'CHAPTER 2', dim: 1 }, '', { t: 'THE CHIEF', big: 1 }, { t: 'JUDGE', big: 1 }, '', { t: 'HELAMAN 7-10', dim: 1 }], { min: 60 });
+  Field.setup(GARDEN, { start: [T(13), T(8)], npcs: [], lighting: 'day' });
+  Field.P.hidden = true;
+  setMode({ update() { Field.P.y = Math.min(T(12), Field.P.y + 0.15); Field.followCam(); }, draw() { G.lighting = 'day'; Field.draw(); } });
+  await fadeIn(6);
+  await sayAll([
+    'Years later, Nephi, son of Helaman, comes home to Zarahemla from the north.',
+    'He found the people in awful wickedness. Gadianton’s robbers were filling the judgment-seats.',
+    'Nephi bowed himself upon the tower in his garden, beside the highway to the chief market, and poured out his soul unto God.',
+    'Men passing by saw him, and ran to tell others. Soon a great crowd gathered at the garden gate.',
+  ]);
+  await fadeOut(false, 6);
+  await cjTower();
+}
+
+/* ---------- scene 1: the tower ---------- */
+async function cjTower() {
+  State.chapter = 'cj'; State.scene = 31; UI.notebookAllowed = true;
+  await sceneBanner(1, 'THE TOWER');
+  writeSave({ chapter: 'cj', scene: 31 });
+  const talked = new Set();
+  const nephi = ent({ x: T(16), y: T(9) + 6, dir: 'down', kind: 'npc', spr: SPR.nephi });
+  const judges = [ent({ x: T(8), y: T(15) + 4, dir: 'right', kind: 'npc', spr: SPR.judge, solid: true }), ent({ x: T(10), y: T(16), dir: 'up', kind: 'npc', spr: SPR.judge, solid: true })];
+  const people = [
+    { e: ent({ x: T(4) + 4, y: T(16), dir: 'up', spr: SPR.citizen }), who: 'WOMAN', lines: ['He weeps for the city as though it were already dead.', 'My husband says he is a madman. I am not so sure.'] },
+    { e: ent({ x: T(13), y: T(15) + 4, dir: 'up', spr: SPR.band }), who: 'MERCHANT', lines: ['Repent, he says! Business has never been better in Zarahemla.', 'The judges take a little gold, and the law looks the other way. Where is the harm?'] },
+    { e: ent({ x: T(22), y: T(15), dir: 'left', spr: SPR.citizen }), who: 'OLD MAN', lines: ['Let him alone. He is a good man.', 'His father Helaman was chief judge once. Those were honest days.'] },
+    { e: ent({ x: T(18), y: T(16) + 2, dir: 'up', spr: SPR.five2 }), who: 'YOUNG MAN', lines: ['A prophet should give a sign. Words are cheap.', 'If he truly speaks for God, let him tell us something we can go and see.'] },
+    { e: judges[0], who: 'JUDGE', lines: ['Why do you listen to this man? He reviles against this people and against our law.', 'Mark him well. He will not speak so freely for long.'] },
+    { e: ent({ x: T(6), y: T(11), dir: 'right', spr: SPR.citizen }), who: 'GARDENER', lines: ['I keep the master’s garden. He has prayed on that tower since dawn.', 'He went north to preach, and they would not hear him. Now he comes home, and finds us worse.'] },
+  ];
+  people.forEach(p => { p.e.kind = 'npc'; p.e.solid = true; });
+  const companions = [ent({ x: T(20), y: T(15) + 6, dir: 'up', kind: 'npc', spr: SPR.five2 }), ent({ x: T(15), y: T(16) + 4, dir: 'up', kind: 'npc', spr: SPR.five3 }), ent({ x: T(24), y: T(16), dir: 'left', kind: 'npc', spr: SPR.five })];
+  const speech = async () => {
+    face(nephi, Field.P);
+    await sayAll([
+      ['NEPHI', 'Why have ye gathered yourselves together? That I may tell you of your iniquities?'],
+      ['NEPHI', 'O repent ye, repent ye! Why will ye die? Turn ye unto the Lord your God.'],
+      'The judges were angry with Nephi, but they were afraid to lay their hands on him.',
+      ['JUDGE', 'Why do you suffer this man to revile against this people and our law?'],
+      ['NEPHI', 'Ye do not believe me. Behold, I will tell you a thing that is happening even now.'],
+      ['NEPHI', 'Behold, your judge is murdered, and he lieth in his blood; and he hath been murdered by his brother, who seeketh to sit in the judgment-seat.'],
+      ['NEPHI', 'And behold, they both belong to your secret band, whose author is Gadianton.'],
+      'A murmur runs through the crowd.',
+      ['JUDGE', 'Lies! You there, and you four. Run to the judgment-seat, and see whether this thing be true.'],
+    ]);
+    Field.P.dir = 'down';
+    const four = [...companions, people[3].e];
+    await Promise.all(four.map((c, i) => walkTo(c, Field.P.x + [-14, 14, -8, 8][i], Field.P.y + [6, 6, 16, 16][i], 0.8)));
+    four.forEach(c => face(c, Field.P));
+    await say('We do not believe Nephi is a prophet. But if the chief judge is dead, as he says, then we will believe.', 'YOUNG MAN');
+    for (;;) {
+      const c = await choose(['“Let us go and see.”', '“It is nonsense. I will stay.”'], { title: 'Run to the judgment-seat?' });
+      if (c === 0) break;
+      await say('Then come and prove it nonsense! Run!', 'YOUNG MAN');
+      break;
+    }
+    Sound.sfx('select');
+    await fadeOut();
+    await cjRun();
+  };
+  const cfg = {
+    start: [T(2), T(15) + 4], startDir: 'right', frags: ['jd1'], npcs: [nephi, ...judges, ...people.map(p => p.e).filter(e => !judges.includes(e)), ...companions], lighting: 'day',
+    target() {
+      if (talked.size >= 3) return { x: nephi.x, y: T(14) + 4 };
+      const P = Field.P; const left = people.filter(p => !talked.has(p.who));
+      left.sort((a, b) => Math.hypot(a.e.x - P.x, a.e.y - P.y) - Math.hypot(b.e.x - P.x, b.e.y - P.y));
+      return left[0] ? { x: left[0].e.x, y: left[0].e.y } : null;
+    },
+    interacts: [
+      ...people.map(p => ({ x: p.e.x, y: p.e.y, r: 16, fn: async () => { face(p.e, Field.P); for (const l of p.lines) await say(l, p.who); talked.add(p.who); if (talked.size === 3) await say('The crowd presses closer to the tower. Nephi lifts his head.'); } })),
+      { x: T(16), y: T(14) + 2, r: 16, when: () => talked.size >= 3, fn: speech },
+      { x: T(16), y: T(14) + 2, r: 16, when: () => talked.size < 3, fn: async () => { await say('Nephi is praying. Listen to what the crowd is saying first.'); } },
+    ],
+    hud() { frame(0, 0, 160, 13); text(talked.size < 3 ? 'LISTEN TO THE CROWD ' + talked.size + '/3' : 'GO TO NEPHI’S TOWER', 5, 3, 3); },
+  };
+  Field.setup(GARDEN, cfg);
+  Field.P.spr = SPR.five;
+  setMode(fieldMode());
+  Sound.play('house');
+  await fadeIn();
+  await sayAll([
+    'You are in the crowd at Nephi’s garden. You doubt he is a prophet.',
+    'Talk to the people with A. Start opens your notebook.',
+  ]);
+}
+
+/* ---------- scene 2: the run ---------- */
+async function cjRun() {
+  State.chapter = 'cj'; State.scene = 32; UI.notebookAllowed = false;
+  await sceneBanner(2, 'THE RUN');
+  writeSave({ chapter: 'cj', scene: 32 });
+  let time = 40 * 60, done = false, toastT = 0;
+  const walker = (x, y, path, sp, spr) => ent({ x, y, kind: 'npc', spr: spr || SPR.citizen, path, speed: sp, lookAround: false });
+  const npcs = [
+    walker(T(52), T(24), [[T(51) + 4, T(22), 10], [T(51) + 4, T(30), 10]], 0.5),
+    walker(T(52), T(36), [[T(52), T(34), 10], [T(52), T(44), 10]], 0.45, SPR.band),
+    walker(T(46), T(32), [[T(44), T(31) + 4, 10], [T(60), T(32), 10]], 0.55),
+    walker(T(43), T(25), [[T(43), T(21), 10], [T(43), T(29), 10]], 0.5, SPR.five3),
+    walker(T(30), T(20), [[T(10), T(20), 20], [T(58), T(20), 20]], 0.6),
+    walker(T(50), T(19) + 4, [[T(58), T(19) + 4, 20], [T(38), T(19) + 4, 20]], 0.5, SPR.band),
+    walker(T(36), T(26), [[T(28), T(26), 20], [T(36), T(22), 20], [T(36), T(29), 20]], 0.45),
+    walker(T(32), T(16), [[T(25), T(16), 20], [T(38), T(16), 20]], 0.5, SPR.five2),
+    walker(T(43), T(14), [[T(43), T(10), 10], [T(43), T(17), 10]], 0.45),
+    walker(T(30), T(28), [[T(26), T(29), 30], [T(34), T(29), 30]], 0.35, SPR.citizen),
+  ];
+  const start = [T(57), T(43) + 2];
+  const cfg = {
+    start, startDir: 'up', npcs, lighting: 'day',
+    target: () => ({ x: T(32), y: T(14) }),
+    tick() {
+      if (done) return;
+      if (toastT > 0) toastT--;
+      if (--time <= 0) { done = true; Field.runScript(async () => {
+        await say('Too late! The crowd blocks your way. Try again.');
+        await fadeOut(); time = 40 * 60; done = false; Field.P.x = start[0]; Field.P.y = start[1]; Field.resetNPCs(); Field.snapCam(); await fadeIn();
+      }); return; }
+      const P = Field.P;
+      if (!(P.stun > 0)) for (const n of npcs) if (Math.hypot(n.x - P.x, n.y - P.y) < 10) {
+        P.stun = 26; const d = Math.hypot(P.x - n.x, P.y - n.y) || 1; Field.moveEnt(P, (P.x - n.x) / d * 5, (P.y - n.y) / d * 5);
+        Sound.sfx('thud'); G.shake = 4; toastT = 60; break;
+      }
+    },
+    triggers: [{ x: T(26), y: T(12), w: T(12), h: T(5), fn: async () => { done = true; await cjArrive(); } }],
+    hud() {
+      const s = Math.max(0, Math.ceil(time / 60));
+      frame(0, 0, 160, 13); text('RUN!  HOLD B', 5, 3, 3); text('0:' + String(s).padStart(2, '0'), 122, 3, s < 10 && (G.frame & 8) ? 2 : 3);
+      if (toastT > 0) { frame(34, 128, 92, 14); textCenter('OUT OF MY WAY!', 132, 3); }
+    },
+  };
+  Field.setup(CITY, cfg);
+  Field.P.spr = SPR.five;
+  setMode(fieldMode());
+  Sound.play('escape');
+  await fadeIn();
+  await say('Race the other four to the judgment-seat. Weave around the crowds.');
+}
+async function cjArrive() {
+  Sound.stopMusic();
+  const P = Field.P;
+  Field.npcs.forEach(n => n.hidden = true);
+  const judge = ent({ x: T(32), y: T(12) + 4, dir: 'down', kind: 'npc', spr: SPR.judge, lying: true });
+  const comps = [SPR.five2, SPR.five3, SPR.five, SPR.five2].map((s, i) => ent({ x: P.x - 10 + i * 8, y: P.y + 30, dir: 'up', kind: 'npc', spr: s }));
+  Field.npcs.push(judge, ...comps);
+  await walkTo(P, T(31), T(14) + 4, 0.9);
+  await Promise.all(comps.map((c, i) => walkTo(c, T(28) + i * 16 + (i > 1 ? 16 : 0), T(15) + 4, 0.9)));
+  P.dir = 'up'; comps.forEach(c => c.dir = 'up');
+  await wait(30);
+  await say('You come in unto the judgment-seat.');
+  await say('And behold, the chief judge has fallen to the earth, and lies dead, even as Nephi said.');
+  await say('The five were so astonished that they fell to the earth, for they had not believed.');
+  Sound.sfx('heart');
+  P.lying = true; comps.forEach(c => c.lying = true);
+  await fadeTo(4, true, 6);
+  await wait(30);
+  G.fadeWhite = false; G.fade = 4;
+  setMode(cardMode([]));
+  await fadeTo(0);
+  await sayAll([
+    'The chief judge, Seezoram, had been stabbed by his brother, who came in disguise and fled.',
+    'The servants ran and raised the cry of murder. The people gathered at the judgment-seat.',
+    'There they found five men lying upon the ground. They supposed the five were the murderers, and that God had struck them down so they could not flee.',
+    'They laid hold on the five, and cast them into prison.',
+  ]);
+  await fadeOut();
+  await cjPrison();
+}
+
+/* ---------- scene 3: the prison ---------- */
+async function cjPrison() {
+  State.chapter = 'cj'; State.scene = 33; UI.notebookAllowed = true;
+  await sceneBanner(3, 'THE PRISON');
+  writeSave({ chapter: 'cj', scene: 33 });
+  const talked = new Set();
+  const mates = [
+    { e: ent({ x: T(4), y: T(6), dir: 'right', spr: SPR.five2 }), who: 'YOUNG MAN', lines: ['I asked for a sign. I said words are cheap.', 'He told us before anyone knew. Before the servants cried out. He knew.'] },
+    { e: ent({ x: T(14), y: T(5), dir: 'left', spr: SPR.five3 }), who: 'BEARDED MAN', lines: ['I called Nephi a liar all the way to the judgment-seat.', 'How could a liar know a thing like that?'] },
+    { e: ent({ x: T(7), y: T(9) + 4, dir: 'up', spr: SPR.five }), who: 'QUIET MAN', lines: ['They think we killed him. Tomorrow they bury the judge, and then they will judge us.', 'Only God can help us now. I have not prayed in years. Tonight I did.'] },
+    { e: ent({ x: T(13), y: T(9) + 4, dir: 'up', spr: SPR.five2 }), who: 'TALL MAN', lines: ['Nephi said it was his brother, who wants the judgment-seat.', 'Seezoram’s brother is Seantum. If the prophet is right about that too...'] },
+  ];
+  mates.forEach(m => { m.e.kind = 'npc'; m.e.solid = true; });
+  const jailer = ent({ x: T(6), y: T(14) + 4, dir: 'up', kind: 'npc', spr: SPR.guard, path: [[T(4), T(14) + 4, 90, 'up'], [T(15), T(14) + 4, 90, 'up']], speed: 0.3 });
+  let rested = false;
+  const cfg = {
+    start: [T(10), T(7)], startDir: 'down', npcs: [...mates.map(m => m.e), jailer], liveDuringScripts: false,
+    target() {
+      if (talked.size >= 4) return { x: T(17), y: T(7) };
+      const P = Field.P; const left = mates.filter(m => !talked.has(m.who));
+      left.sort((a, b) => Math.hypot(a.e.x - P.x, a.e.y - P.y) - Math.hypot(b.e.x - P.x, b.e.y - P.y));
+      return { x: left[0].e.x, y: left[0].e.y };
+    },
+    interacts: [
+      ...mates.map(m => ({ x: m.e.x, y: m.e.y, r: 16, fn: async () => { face(m.e, Field.P); for (const l of m.lines) await say(l, m.who); talked.add(m.who); if (talked.size === 4) await say('The night is long. Find a place to rest on the straw by the wall.'); } })),
+      { x: T(10), y: T(10) + 4, r: 14, fn: async () => { await sayAll([['JAILER', 'Murderers! The whole city will mourn tomorrow.'], ['JAILER', 'They will bury the chief judge, and then the judges will deal with you.']]); } },
+      { x: T(17), y: T(7), r: 14, when: () => talked.size >= 4 && !rested, fn: async () => {
+        rested = true;
+        const c = await choose(['“Nephi is a prophet of God.”', '“I do not know what to believe yet.”'], { title: 'Lying awake, you think about Nephi.' });
+        await say(c === 0 ? 'You say it aloud in the dark. The others are quiet, and then one of them says, “Yes.”' : 'But you cannot stop thinking about the judge lying where Nephi said he would be.');
+        await fadeOut(false, 8);
+        await say('The five spent the night in prison. Before morning, their hearts were changed.');
+        await cjAccuse();
+      } },
+    ],
+    hud() { frame(0, 0, 160, 13); text(talked.size < 4 ? 'TALK TO THE OTHERS ' + talked.size + '/4' : 'REST FOR THE NIGHT', 5, 3, 3); },
+  };
+  Field.setup(PRISON, cfg);
+  Field.P.spr = SPR.five;
+  setMode(fieldMode());
+  Sound.play('night');
+  await fadeIn();
+  await say('Night in the prison of Zarahemla. The other four sit in silence. Talk to each of them.');
+}
+
+/* ---------- scene 4: the accusation ---------- */
+async function cjAccuse() {
+  State.chapter = 'cj'; State.scene = 34; UI.notebookAllowed = true;
+  await sceneBanner(4, 'ACCUSED');
+  writeSave({ chapter: 'cj', scene: 34 });
+  const judges = [26, 30, 34, 38].map((x, i) => ent({ x: T(x), y: T(12) + 2, dir: 'down', kind: 'npc', spr: SPR.judge }));
+  const nephi = ent({ x: T(39), y: T(16), dir: 'left', kind: 'npc', spr: SPR.nephi, hidden: true });
+  const comps = [SPR.five2, SPR.five3, SPR.five, SPR.five2].map((s, i) => ent({ x: T(27) + i * 16 + (i > 1 ? 16 : 0), y: T(16) + 4, dir: 'up', kind: 'npc', spr: s }));
+  const crowd = [];
+  for (let i = 0; i < 10; i++) crowd.push(ent({ x: T(23) + (i % 5) * 32 + (i > 4 ? 12 : 0), y: T(17) + (i > 4 ? 10 : 0), dir: 'up', kind: 'npc', spr: i % 3 ? SPR.citizen : SPR.band }));
+  Field.setup(CITY, { start: [T(31) + 4, T(15) + 2], startDir: 'up', npcs: [...judges, nephi, ...comps, ...crowd], lighting: 'day', playerSpr: SPR.five });
+  Field.lock++;
+  setMode(fieldMode());
+  Sound.play('house');
+  await fadeIn();
+  await sayAll([
+    'The next day the people gather to mourn and fast for the chief judge.',
+    'The judges who had been at Nephi’s garden asked: Where are the five we sent to see whether the chief judge was dead?',
+    'The people answered: We know nothing of five you sent. But we have five murderers in prison.',
+    'The five were brought out, and behold, they were the same men.',
+    ['JUDGE', 'You five. Tell us what you saw.'],
+  ]);
+  for (;;) {
+    const c = await choose(['“We ran, and saw the judge dead, as Nephi said. We fell to the earth in astonishment.”', '“We saw nothing worth telling.”', '“Nephi must have done it.”']);
+    if (c === 0) break;
+    await say(c === 1 ? 'The words die in your throat. The others look at you. Tell the truth.' : 'You cannot say it. You do not believe it any more.');
+  }
+  await sayAll([
+    ['YOU', 'When we woke, they cast us into prison. Who did the murder, we do not know. Only this: we found him dead, according to the words of Nephi.'],
+    'The five were set free. But the judges were not satisfied.',
+    ['JUDGE', 'This Nephi must have agreed with someone to slay the judge, so that he could declare it to us and make himself a great man.'],
+    'They had Nephi taken and bound, and brought before the multitude.',
+  ]);
+  nephi.hidden = false;
+  await walkTo(nephi, T(33), T(14) + 4, 0.5); nephi.dir = 'up';
+  await sayAll([
+    ['JUDGE', 'You are a confederate. Who is the man who did this murder? Tell us, and we will give you money, and spare your life.'],
+    ['NEPHI', 'O ye fools, ye blind, ye stiffnecked people! How long will the Lord your God suffer you to go on in this your way of sin?'],
+    ['NEPHI', 'Because I have told you of the murder, you say I agreed with the man who did it. Then I will show you another sign.'],
+    ['NEPHI', 'Go to the house of Seantum, the brother of Seezoram, and ask him: Has Nephi agreed with thee to murder thy brother?'],
+    ['NEPHI', 'He shall say unto you, Nay. Then ask him: Have ye murdered your brother? He shall stand with fear, and deny it, and say that he is innocent.'],
+    ['NEPHI', 'But examine him, and ye shall find blood upon the skirts of his cloak.'],
+    ['NEPHI', 'Then say: From whence cometh this blood? Is it not the blood of your brother? And he shall tremble, and look pale.'],
+    ['NEPHI', 'Then say: Because of this fear and this paleness, we know that thou art guilty. And he shall confess.'],
+    ['NEPHI', 'And he shall say that I, Nephi, know nothing of the matter, save it were given unto me by the power of God.'],
+  ]);
+  State.cjNotes = true; writeSave({ chapter: 'cj', scene: 34, cjNotes: true }); Sound.sfx('learn');
+  await say('Nephi’s words are written in your notebook. Press Start to read them.');
+  await say('The judges’ men set out for Seantum’s house, and take you as a witness.', 'JUDGE');
+  await fadeOut();
+  await cjHouse();
+}
+
+/* ---------- scene 5: Seantum's house ---------- */
+function drawBig(bmp, x0, y0, s, recolor) {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { let c = bmp[y * 16 + x]; if (c === 255) continue; if (recolor) c = recolor(c, x, y); rect(x0 + x * s, y0 + y * s, s, s, c); }
+}
+const STAIN = [[5, 13], [6, 13], [9, 12], [10, 13]];
+async function cjHouse() {
+  State.chapter = 'cj'; State.scene = 35; UI.notebookAllowed = true; State.cjNotes = true;
+  await sceneBanner(5, 'SEANTUM');
+  writeSave({ chapter: 'cj', scene: 35, cjNotes: true });
+  const HOUSE = buildHouseInterior();
+  const sea = ent({ x: T(10), y: T(5) + 6, dir: 'down', kind: 'npc', spr: SPR.seantum, solid: true });
+  const men = [ent({ x: T(8), y: T(16), dir: 'up', kind: 'npc', spr: SPR.guard }), ent({ x: T(12), y: T(16), dir: 'up', kind: 'npc', spr: SPR.guard })];
+  let started = false;
+  const cfg = {
+    start: [T(10), T(16)], startDir: 'up', npcs: [sea, ...men], frags: ['jd2'], lighting: 'day', playerSpr: SPR.five,
+    target: () => started ? null : { x: sea.x, y: sea.y },
+    interacts: [{ x: T(10), y: T(9) + 4, r: 20, when: () => !started, fn: async () => { started = true; await interrogate(); } }],
+    hud() { frame(0, 0, 160, 13); text('QUESTION SEANTUM', 5, 3, 3); },
+  };
+  Field.setup(HOUSE, cfg);
+  setMode(fieldMode());
+  Sound.play('night');
+  await fadeIn();
+  await say('Seantum waits by the table, calm. Walk up and press A.');
+}
+async function interrogate() {
+  let comp = 40, look = 'calm', shake = 0, examine = null, found = false;
+  const sp = SPR.seantum.down[0];
+  const big = {
+    update() { if (shake > 0) shake--; if (examine) examineUpdate(); },
+    draw() {
+      G.lighting = 'day';
+      for (let ty = 0; ty < 18; ty++) for (let tx = 0; tx < 20; tx++) blit(TILES[ty < 4 ? 'h' : 'f'].bmp, 8, 8, tx * 8, ty * 8);
+      const ox = 40 + (shake > 0 ? ((G.frame & 2) ? 1 : -1) : 0), oy = 18;
+      drawBig(sp, ox, oy, 5, (c, x, y) => {
+        if (look === 'pale' && SPR.seantum.skin.includes(c) && y >= 3 && y <= 6) return addColor('#ead2b4');
+        for (const [sx, sy] of STAIN) if (x === sx && y === sy) return found ? addColor('#8a1f24') : SPR.seantum.robe[1];
+        return c;
+      });
+      if (look === 'fear' || look === 'pale') { rect(ox + 6 * 5, oy + 4 * 5 + 1, 5, 2, 0); rect(ox + 9 * 5, oy + 4 * 5 + 1, 5, 2, 0); }
+      if (examine) {
+        const c = examine;
+        for (let i = 0; i < 13; i++) { pset(c.x - 6 + i, c.y - 6, 3); pset(c.x - 6 + i, c.y + 6, 3); pset(c.x - 6, c.y - 6 + i, 3); pset(c.x + 6, c.y - 6 + i, 3); }
+        pset(c.x, c.y, 3); pset(c.x - 1, c.y, 0); pset(c.x + 1, c.y, 0);
+      }
+    },
+    hud() {
+      frame(0, 0, 160, 13); text('COMPOSURE', 5, 3, 3);
+      rect(64, 3, 90, 7, 3); rect(65, 4, 88, 5, 0); rect(65, 4, Math.round(88 * Math.min(100, comp) / 100), 5, comp > 70 && (G.frame & 8) ? 3 : 2);
+      if (examine && !UI.dlg) { frame(0, 128, 160, 16); textCenter(examine.msgT > 0 ? examine.msg : 'EXAMINE HIM: D-PAD, A', 132, 3); }
+    },
+  };
+  function examineUpdate() {
+    const c = examine; if (UI.dlg) return;
+    if (c.msgT > 0) c.msgT--;
+    const I = Input.held;
+    c.x = Math.max(20, Math.min(140, c.x + ((I.right ? 1 : 0) - (I.left ? 1 : 0)) * 1.4));
+    c.y = Math.max(18, Math.min(124, c.y + ((I.down ? 1 : 0) - (I.up ? 1 : 0)) * 1.4));
+    if (Input.pressed.start) { UI.notebook = true; return; }
+    if (Input.pressed.a) {
+      const cx = Math.floor((c.x - 40) / 5), cy = Math.floor((c.y - 18) / 5);
+      const near = STAIN.some(([sx, sy]) => Math.abs(sx - cx) <= 1 && Math.abs(sy - cy) <= 1);
+      if (near) { const r = c.res; examine = null; Sound.sfx('learn'); r(); return; }
+      Sound.sfx('wrong'); comp += 8;
+      if (comp >= 100) { const r = c.res; examine = null; r(); return; }
+      c.msg = cy >= 2 && cy <= 6 && cx >= 3 && cx <= 12 ? 'HIS FACE IS CALM. TOO CALM.' : cy === 10 && (cx <= 3 || cx >= 12) ? 'HIS HANDS ARE CLEAN.' : cy === 10 ? 'NOTHING ON HIS BELT.' : cy >= 7 && cy <= 13 ? 'LOOK LOWER. THE SKIRTS.' : 'NOTHING THERE.';
+      c.msgT = 90;
+    }
+  }
+  const fail = async () => {
+    look = 'calm';
+    await say('Enough! You come into my house and insult me while my brother lies dead? Get out!', 'SEANTUM');
+    await say('The judges’ men lead you outside. Read Nephi’s words again, and try once more.');
+    await fadeOut(); await cjHouse();
+    throw 'restart';
+  };
+  const ask = async (opts, correct, costs, title) => {
+    const order = shuffle(opts.map((o, i) => i));
+    const pick = order[await choose(order.map(i => opts[i]), { title })];
+    if (pick === correct) { Sound.sfx('right'); comp = Math.max(0, comp - 8); return true; }
+    Sound.sfx('wrong'); comp += costs[pick]; G.shake = 4;
+    if (comp >= 100) await fail();
+    return false;
+  };
+  try {
+    await fadeOut(); setMode(big); await fadeIn();
+    await say('Seantum looks at you calmly.', null);
+    await say('Judges’ men in my house, on the day of my brother’s burial? What do you want?', 'SEANTUM');
+    // 1
+    while (!(await ask(['“Has Nephi agreed with thee to murder Seezoram, thy brother?”', '“Where were you yesterday?”', '“Who leads your secret band?”', '“Did you love your brother?”'], 0, [0, 20, 40, 20], 'Nephi’s first question:'))) await say(comp > 60 ? 'Seantum smiles a little. He is more sure of himself now.' : 'That is not what Nephi told you to ask.', null);
+    await say('Nephi? Nay. I have never spoken with the man.', 'SEANTUM');
+    // 2
+    while (!(await ask(['“Have ye murdered your brother?”', '“Do you know who did it?”', '“Will you sit in the judgment-seat now?”'], 0, [0, 20, 25], 'Then ask him...'))) await say('Seantum shrugs. That gives him nothing to fear.', null);
+    look = 'fear'; shake = 30;
+    await say('Seantum stands with fear, and for a moment does not know what to say.');
+    await say('I? Murder my own brother? How can you ask me such a thing? I am innocent!', 'SEANTUM');
+    await say('He makes as if he were astonished. Nephi said to examine him.');
+    look = 'calm';
+    await new Promise(res => { examine = { x: 80, y: 60, res, msg: '', msgT: 0 }; });
+    if (comp >= 100) await fail();
+    found = true; look = 'fear';
+    await say('There is blood upon the skirts of his cloak.');
+    // 4
+    while (!(await ask(['“From whence cometh this blood? Is it not the blood of your brother?”', '“Did you cut yourself?”', '“We will have you put to death!”'], 0, [0, 30, 20], 'Ask him about the blood:'))) await say('He collects himself and starts to make excuses.', null);
+    look = 'pale'; shake = 60; Sound.sfx('heart');
+    await say('Seantum trembles, and his face turns pale, as if death had come upon him.');
+    // 5
+    while (!(await ask(['“Because of this fear and this paleness, we know that thou art guilty.”', '“Confess, or it will go worse for you.”', '“Perhaps we are mistaken.”'], 0, [0, 20, 40], 'What did Nephi say to tell him?'))) await say('Seantum’s hands steady. Say what Nephi told you to say.', null);
+    shake = 40;
+    await sayAll([
+      'Greater fear comes upon Seantum.',
+      ['SEANTUM', 'Yes. I did it. I murdered my brother, Seezoram.'],
+      ['SEANTUM', 'And Nephi... he knows nothing of the matter. Nothing, save it were given unto him by the power of God.'],
+    ]);
+    Sound.sfx('jingle');
+    await fadeOut();
+    await cjEnding();
+  } catch (e) { if (e !== 'restart') throw e; }
+}
+
+/* ---------- ending ---------- */
+async function cjEnding() {
+  State.scene = 36;
+  writeSave({ chapter: 1, scene: 1, signs: [false, false, false], checkpoint: null, cjNotes: false });
+  const nephi = ent({ x: T(16), y: T(9) + 6, dir: 'down', kind: 'npc', spr: SPR.nephi });
+  const crowd = [];
+  for (let i = 0; i < 9; i++) crowd.push(ent({ x: T(4) + i * 20, y: T(15) + (i % 2) * 10, dir: 'up', kind: 'npc', spr: [SPR.citizen, SPR.band, SPR.five2][i % 3] }));
+  Field.setup(GARDEN, { start: [T(13), T(12)], npcs: [nephi, ...crowd], lighting: 'day' });
+  Field.P.hidden = true; Field.lock++;
+  setMode({ update() { Field.update(); }, draw() { G.lighting = 'day'; Field.draw(); } });
+  Sound.play('house');
+  await fadeIn(6);
+  await sayAll([
+    'It was all as Nephi had said. Nephi was set free, and the five with him.',
+    'Some believed the words of Nephi. Others believed because of the five, for they had been converted while in prison.',
+    'Some said: Nephi is a prophet.',
+    'Others said: Behold, he is a god. How else could he know all things?',
+    'And there arose a division among the people.',
+  ]);
+  crowd.forEach((c, i) => walkTo(c, i % 2 ? -20 : 230, c.y, 0.5));
+  await wait(90);
+  await sayAll([
+    'And Nephi went his way toward his own house, pondering the things the Lord had shown him.',
+    'And a voice came unto him: Blessed art thou, Nephi, for those things which thou hast done.',
+  ]);
+  await fadeOut(false, 8);
+  Sound.sfx('jingle');
+  await showCard([{ t: 'END OF', big: 1 }, { t: 'CHAPTER 2', big: 1 }, '', 'THE CHIEF JUDGE', { t: 'HELAMAN 7-10', dim: 1 }], { min: 100 });
+  await completeChapter('judge');
+}
+
+
+</script>
+</body>
+</html>
